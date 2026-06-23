@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Virtual environment (lives in repo dir on the cluster, never committed)
+env/
+.venv/
+
+# Raw / downloaded data — public datasets, but never committed (see CLAUDE.md, spec §6)
+data/raw/
+data/**/*.csv
+data/**/*.zip
+*.parquet
+
+# Run outputs, checkpoints, Slurm logs
+outputs/
+logs/*.out
+logs/*.err
+*.pt
+*.ckpt
+
+# Persistent spectral-feature cache contents (keep the dir, not the artifacts)
+cache/features/*
+!cache/features/.gitkeep
+
+# Downloaded inference checkpoints (synced from cluster to Mac)
+inference/model/*
+!inference/model/.gitkeep
+
+# Experiment tracking
+wandb/
+mlruns/
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

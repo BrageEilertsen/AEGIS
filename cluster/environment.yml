@@ -1,0 +1,33 @@
+# Conda/mamba alternative to the venv + requirements.txt (spec §11.2).
+# CUDA is 12.1 on this cluster — torch MUST be the cu121 build, and the compiled PyG extras
+# (torch_scatter / torch_sparse) MUST be installed and verified on a GPU node, not on login.
+#
+#   mamba env create -f cluster/environment.yml   # or: conda env create -f ...
+#   conda activate aegis
+#   # then, ON A GPU NODE, matched to the installed torch+cu121 build:
+#   pip install torch_scatter torch_sparse -f https://data.pyg.org/whl/torch-<ver>+cu121.html
+#
+# The venv-in-home-dir setup (cluster/requirements.txt) is the proven path here; this file is
+# the conda equivalent for anyone who prefers it.
+
+name: aegis
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      # torch from the cu121 index (not conda) to match the cluster CUDA exactly
+      - --index-url https://download.pytorch.org/whl/cu121
+      - torch
+      - --extra-index-url https://pypi.org/simple
+      - torch_geometric>=2.5
+      - networkx>=3.0
+      - scipy>=1.10
+      - scikit-learn>=1.3
+      - pandas>=2.0
+      - pyyaml>=6.0
+      # - wandb                       # experiment tracking (§7.5)
+      # torch_scatter / torch_sparse: install on a GPU node (see header)

@@ -1,0 +1,44 @@
+# AEGIS — GCN baseline config (spec §7.3 step 1, Phase 2).
+# This YAML is the SINGLE SOURCE OF TRUTH for hyperparameters (spec §11.3). Every reported
+# number must be reproducible from a committed config + fixed seed.
+# Values below are PROVISIONAL placeholders — tune in Phase 2.
+
+model: gcn                      # gcn | graphsage | gat | temporal
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  dropout: 0.5
+
+dataset:
+  name: ibm_aml                 # ibm_aml | elliptic
+  variant: LI-Small             # start small for fast iteration
+  graph: transaction_as_node    # transaction_as_node | account_as_node
+  delta_t_hours: 24             # time window Δt for flow edges (spec §6.3)
+  subsample_legit: null         # optional negative subsampling ratio on TRAIN only
+
+features:
+  raw: true                     # amount, currency, payment format, timestamp, bank ids
+  local: true                   # degree, clustering, neighbor stats, reciprocity
+  spectral:
+    laplacian_pe_k: 16          # first k non-trivial Laplacian eigenvectors
+    centralities: [pagerank, eigenvector]
+    communities: false
+
+split:
+  type: temporal                # temporal, NOT random (prevents leakage; spec §6.4)
+  ratios: [0.6, 0.2, 0.2]       # train / val / test by transaction time
+
+train:
+  loss: weighted_ce             # weighted_ce | focal  (compare; spec §7.4)
+  class_weight: auto
+  optimizer: adamw
+  lr: 0.01
+  weight_decay: 0.0005
+  max_epochs: 200
+  early_stopping:
+    monitor: val_pr_auc         # PR-AUC on the illicit class is the headline metric (§7.6)
+    patience: 20
+  lr_schedule: plateau
+
+eval:
+  min_precision: 0.9            # for the recall-at-fixed-precision metric (§7.6)

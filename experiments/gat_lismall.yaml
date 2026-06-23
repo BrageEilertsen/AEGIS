@@ -1,0 +1,48 @@
+# AEGIS — GAT config on IBM-AML LI-Small (spec §7.3 step 3, Phase 3). Primary model.
+# GAT attention weights double as a native edge-importance explanation signal (feeds §7.7).
+# This YAML is the SINGLE SOURCE OF TRUTH for hyperparameters (spec §11.3).
+# Values below are PROVISIONAL placeholders — tune in Phase 3.
+
+model: gat                      # gcn | graphsage | gat | temporal
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  heads: 8                      # attention heads
+  dropout: 0.5
+  attention_dropout: 0.3
+
+dataset:
+  name: ibm_aml
+  variant: LI-Small
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: null
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 16
+    centralities: [pagerank, eigenvector]
+    communities: false
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: focal                   # focal loss for the ~2% positive imbalance (compare vs weighted_ce)
+  focal_gamma: 2.0
+  class_weight: auto
+  optimizer: adamw
+  lr: 0.005
+  weight_decay: 0.0005
+  max_epochs: 300
+  early_stopping:
+    monitor: val_pr_auc
+    patience: 30
+  lr_schedule: cosine
+  neighbor_sampling: null       # enable GraphSAGE-style sampling for Medium/Large (spec §7.4)
+
+eval:
+  min_precision: 0.9
