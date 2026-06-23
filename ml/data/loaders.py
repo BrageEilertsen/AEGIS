@@ -109,13 +109,18 @@ def make_synthetic_aml(
     n_banks: int = 4,
     seed: int = 0,
     start: str = "2022/09/01 00:00",
-) -> pd.DataFrame:
+    return_pattern_labels: bool = False,
+):
     """Generate a tiny IBM-AML-schema DataFrame with injected laundering typologies.
 
     Produces mostly legitimate transactions plus a few classic structures (fan-out / smurfing,
     layering chain, circular flow) whose transactions are labelled ``Is Laundering = 1``. The
     result is schema-identical to the real CSV, so the full pipeline can be exercised offline.
     Not a realistic simulator — it exists only to smoke-test graph construction.
+
+    With ``return_pattern_labels=True`` returns ``(df, pattern_per_row)`` where pattern_per_row is a
+    string array aligned to the normalized (node) order, each in
+    {"legit","fan_out","layering_chain","circular"} — the ground-truth typology oracle for tests.
     """
     rng = random.Random(seed)
     start_ts = pd.Timestamp(start)
@@ -126,7 +131,7 @@ def make_synthetic_aml(
 
     rows: list[dict] = []
 
-    def add(src, dst, minute, amount, illicit):
+    def add(src, dst, minute, amount, illicit, pattern="legit"):
         cur = rng.choice(currencies)
         rows.append({
             COL_TIMESTAMP: (start_ts + pd.Timedelta(minutes=minute)).strftime(TIMESTAMP_FORMAT),
@@ -136,6 +141,7 @@ def make_synthetic_aml(
             COL_AMT_PAID: round(amount, 2), COL_CUR_PAID: cur,
             COL_PAYMENT_FORMAT: rng.choice(formats),
             COL_IS_LAUNDERING: int(illicit),
+            "_pattern": pattern,
         })
 
     # Legitimate background traffic spread over ~30 days.
@@ -149,22 +155,29 @@ def make_synthetic_aml(
         source = rng.choice(accounts)
         mules = rng.sample(accounts, 8)
         for i, m in enumerate(mules):
-            add(source, m, base_minute + i, rng.uniform(8000, 9000), illicit=True)
+            add(source, m, base_minute + i, rng.uniform(8000, 9000), illicit=True, pattern="fan_out")
 
     def layering_chain(base_minute):
         chain = rng.sample(accounts, 6)
         for i in range(len(chain) - 1):
-            add(chain[i], chain[i + 1], base_minute + i * 3, rng.uniform(9000, 11000), illicit=True)
+            add(chain[i], chain[i + 1], base_minute + i * 3, rng.uniform(9000, 11000),
+                illicit=True, pattern="layering_chain")
 
     def circular(base_minute):
         cyc = rng.sample(accounts, 5)
         for i in range(len(cyc)):
-            add(cyc[i], cyc[(i + 1) % len(cyc)], base_minute + i * 2, rng.uniform(11000, 13000), illicit=True)
+            add(cyc[i], cyc[(i + 1) % len(cyc)], base_minute + i * 2, rng.uniform(11000, 13000),
+                illicit=True, pattern="circular")
 
     for k in range(6):
         fan_out(rng.randrange(horizon))
         layering_chain(rng.randrange(horizon))
         circular(rng.randrange(horizon))
 
-    df = pd.DataFrame(rows, columns=REQUIRED_COLUMNS)
-    return normalize(df)
+    df = pd.DataFrame(rows, columns=REQUIRED_COLUMNS + ["_pattern"])
+    df = normalize(df)                                  # sorts by time; _pattern rides along
+    patterns = df["_pattern"].to_numpy()
+    df = df.drop(columns=["_pattern"])
+    if return_pattern_labels:
+        return df, patterns
+    return df
