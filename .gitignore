@@ -43,6 +43,14 @@ mlruns/
 CLAUDE.md
 docs/AEGIS_BUILD_SPEC.md
 
+# Secrets — NEVER commit. Tokens/credentials live in env vars or the HF cache, not the repo.
+.env
+.env.*
+*.token
+hf_token*
+**/secrets*
+.huggingface/
+
 # OS / editor
 .DS_Store
 *.swp

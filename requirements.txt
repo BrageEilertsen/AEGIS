@@ -35,6 +35,14 @@ pyyaml>=6.0
 # --- Experiment tracking (enable when wiring §7.5) ---
 # wandb
 
+# --- Model hosting (Hugging Face Hub: bragee/AEGIS) ---
+huggingface_hub>=0.23
+
 # --- Inference service deps (Phase 7, on the Mac — kept here for reference) ---
 # fastapi
 # uvicorn
+
+# NOTE: this cluster TLS-intercepts outbound HTTPS. Python libs that hit the network
+# (huggingface_hub, kaggle, wandb) need the SYSTEM CA bundle, e.g.:
+#   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+#   export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt

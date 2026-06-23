@@ -16,6 +16,11 @@
 # Phase 0: placeholder. Flesh out + verify in Phase 1.
 set -euo pipefail
 
+# This cluster TLS-intercepts outbound HTTPS; point requests-based tools (kaggle) at the
+# system CA bundle so certificate verification succeeds.
+CA="${AEGIS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
+[ -f "$CA" ] && export REQUESTS_CA_BUNDLE="$CA" SSL_CERT_FILE="$CA"
+
 RAW_DIR="$(cd "$(dirname "$0")" && pwd)/raw"
 mkdir -p "$RAW_DIR"
 

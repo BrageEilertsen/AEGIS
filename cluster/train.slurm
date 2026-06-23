@@ -35,6 +35,11 @@ source "/home/brageei/AEGIS/env/bin/activate"
 export PYTHONUNBUFFERED=1
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
 
+# Cluster TLS-intercepts outbound HTTPS; trust the system CA bundle so any network use
+# (Hugging Face Hub, wandb) verifies certificates correctly.
+CA="/etc/ssl/certs/ca-certificates.crt"
+[ -f "$CA" ] && export SSL_CERT_FILE="$CA" REQUESTS_CA_BUNDLE="$CA"
+
 echo "Job started at: $(date)"; echo "Node: $(hostname)"; nvidia-smi -L || true; echo
 
 CONFIG="${1:-experiments/gat_lismall.yaml}"

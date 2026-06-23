@@ -37,6 +37,10 @@ mkdir -p "$AEGIS_FEATURE_CACHE"
 source "/home/brageei/AEGIS/env/bin/activate"
 export PYTHONUNBUFFERED=1
 
+# Cluster TLS-intercepts outbound HTTPS; trust the system CA bundle (HF Hub, wandb).
+CA="/etc/ssl/certs/ca-certificates.crt"
+[ -f "$CA" ] && export SSL_CERT_FILE="$CA" REQUESTS_CA_BUNDLE="$CA"
+
 echo "Job started at: $(date)"; echo "Node: $(hostname)"; nvidia-smi -L || true; echo
 
 RUN_DIR="${1:?usage: sbatch cluster/eval.slurm <run_dir> [split]}"
