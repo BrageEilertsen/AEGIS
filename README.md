@@ -61,7 +61,33 @@ Python venv at `/home/brageei/AEGIS/env`, PyTorch + PyG on CUDA **12.1** (`cu121
 compiled PyG extras (`torch_scatter`, `torch_sparse`) must be installed and verified on a GPU
 node — not on the login node. See [`cluster/`](cluster/) for pinned dependencies.
 
+## Building the graph (Phase 1)
+
+Once `data/raw/LI-Small_Trans.csv` is downloaded (`bash data/download_ibm_aml.sh`, needs a Kaggle
+token), build and cache the PyG graph(s) and print stats:
+
+```bash
+source env/bin/activate
+python ml/data/build_graph.py --config experiments/gcn_baseline.yaml --graph both
+```
+
+No data yet? Smoke-test the whole pipeline offline on a synthetic IBM-AML-schema frame:
+
+```bash
+python ml/data/build_graph.py --config experiments/gcn_baseline.yaml --synthetic --graph both
+python tests/test_phase1_graph.py        # correctness tests (edges, Δt window, temporal split)
+```
+
+Built graphs are cached content-addressed under `data/processed/` (gitignored), keyed by variant,
+graph view, Δt, subsampling, and split — so they are reused across runs.
+
 ## Status
 
-Phase 0 (scaffold) complete. Phase 1 (IBM-AML LI-Small data pipeline + graph construction) next.
+- **Phase 0 — scaffold:** complete (repo structure, venv, Slurm script, stable train CLI).
+- **Phase 1 — data & graph construction:** complete. Loader for the IBM-AML schema
+  (`ml/data/loaders.py`), transaction-as-node + account-as-node graphs, configurable Δt,
+  temporal 60/20/20 split, content-addressed cache, and a stats CLI
+  (`ml/data/build_graph.py`). Verified on synthetic data; runs unchanged on the real CSV.
+- **Phase 2 — spectral features + GCN baseline:** next.
+
 Build order and acceptance criteria per spec §12.

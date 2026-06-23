@@ -10,6 +10,7 @@ env/
 
 # Raw / downloaded data — public datasets, but never committed (see CLAUDE.md, spec §6)
 data/raw/
+data/processed/
 data/**/*.csv
 data/**/*.zip
 *.parquet
