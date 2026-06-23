@@ -37,6 +37,12 @@ mlruns/
 # Local Claude Code settings (machine-specific)
 .claude/settings.local.json
 
+# Operational / environment-specific docs kept LOCAL only — they contain cluster
+# infrastructure details (SSH access tuple, internal hostnames) and must not be
+# published to the public repo. Keep them on the cluster, never commit.
+CLAUDE.md
+docs/AEGIS_BUILD_SPEC.md
+
 # OS / editor
 .DS_Store
 *.swp

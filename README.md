@@ -10,8 +10,9 @@ miss. Every flag ships with a faithful explanation (salient edges/features + mat
 typology), and the system demonstrates adversarial robustness: a naïve model fooled by graph
 perturbation, a hardened model that holds.
 
-See [`docs/AEGIS_BUILD_SPEC.md`](docs/AEGIS_BUILD_SPEC.md) for the full specification and
-[`CLAUDE.md`](CLAUDE.md) for the operational ground rules (cluster, filesystem, Slurm contract).
+The detailed build specification and the cluster operational ground rules are kept as local,
+uncommitted working documents (they contain environment-specific infrastructure details); they
+are intentionally not part of this public repository.
 
 ## Repository map
 
@@ -52,8 +53,7 @@ mkdir -p /home/brageei/AEGIS/logs          # must exist before submitting
 sbatch cluster/train.slurm experiments/gcn_baseline.yaml
 ```
 
-Monitor with `squeue -u $USER`, `tail -f logs/aegis_train-<jobid>.out`, or the dashboard at
-`<monitoring-dashboard>`.
+Monitor with `squeue -u $USER` and `tail -f logs/aegis_train-<jobid>.out`.
 
 ## Environment
 
