@@ -1,0 +1,49 @@
+# AEGIS — GraphSAGE smoke test on the SYNTHETIC IBM-AML frame (login-CPU, no download).
+#   python ml/train.py --config experiments/graphsage_synthetic.yaml \
+#       --out-dir /tmp/sage --feature-cache /tmp/fc --seed 0
+
+config_version: 1
+device: cpu
+model: graphsage
+arch:
+  hidden_channels: 32
+  num_layers: 2
+  dropout: 0.5
+  aggregator: mean              # mean | max | lstm
+
+dataset:
+  name: ibm_aml
+  variant: synthetic
+  synthetic: true
+  synthetic_legit: 4000
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: null
+  max_out_per_in: 200
+  graph_cache_dir: /tmp/aegis_graphcache
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 8
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: weighted_ce
+  optimizer: adamw
+  lr: 0.01
+  weight_decay: 0.0005
+  max_epochs: 60
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 20 }
+  lr_schedule: plateau
+  lr_schedule_params: { factor: 0.5, patience: 5, min_lr: 1.0e-6 }
+  neighbor_sampling: null        # full-batch; set a dict to sample on a GPU node
+
+eval:
+  min_precision: 0.9

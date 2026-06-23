@@ -1,0 +1,45 @@
+# AEGIS — GAT on the Elliptic1 Bitcoin benchmark (spec §6.2, §7.6). GPU (a100q) via Slurm.
+# Downloads ~hundreds of MB on first run; the cluster TLS-intercepts HTTPS, so the Slurm script
+# exports SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt (already wired into cluster/train.slurm).
+# Reports PR-AUC / recall@precision / F1-illicit against published GCN/GAT baselines.
+
+config_version: 1
+device: auto
+model: gat
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  heads: 8
+  dropout: 0.5
+  attention_dropout: 0.3
+  variant: gat_v2
+
+dataset:
+  name: elliptic                # routes build_graph -> ml/data/elliptic.load_elliptic1
+  fixture: false
+  elliptic_cache_dir: data/raw/elliptic   # gitignored; PyG caches raw + processed here
+
+features:
+  # Elliptic ships its own node features (used as the 'raw' group). Spectral PE + centralities
+  # are appended from the graph structure via the same cached, per-component machinery.
+  spectral:
+    laplacian_pe_k: 16
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal                # quantile over the 49 timesteps; unknown (y==2) excluded everywhere
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: focal
+  focal_gamma: 2.0
+  optimizer: adamw
+  lr: 0.005
+  weight_decay: 0.0005
+  max_epochs: 300
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 30 }
+  lr_schedule: cosine
+
+eval:
+  min_precision: 0.9

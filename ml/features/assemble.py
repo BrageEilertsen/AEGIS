@@ -86,41 +86,69 @@ def apply_standardization(X: torch.Tensor, stats: dict) -> torch.Tensor:
     return (X - mean) / (std + 1e-8)
 
 
-def assemble_features(data, df: pd.DataFrame, feature_cfg: dict, cache_dir: str | Path,
+def assemble_features(data, df, feature_cfg: dict, cache_dir: str | Path,
                       force_feature_cache: bool = False, standardization: dict | None = None
                       ) -> tuple[object, dict]:
-    """Build [raw | local | spectral_pe | centralities], standardize, write into data.x.
+    """Compose features into data.x, standardize train-only, return (data, feat_meta).
 
-    If ``standardization`` is given (eval/inference), it is applied; otherwise stats are computed
-    train-only and returned. Returns (data, feat_meta).
+    Dispatches on the dataset: IBM-AML (a pandas ``df`` of transactions) vs Elliptic (``df is None``;
+    provided node features). Both reuse the same spectral cache and the single standardization
+    chokepoint. If ``standardization`` is given (eval/inference) it is applied, not recomputed.
     """
-    raw_x, raw_names = build_raw_features(df)
-    local_x, local_names = build_local_features(
-        data, df, max_degree=int(feature_cfg.get("max_degree", 2000)))
-    spectral, cache_meta = load_or_compute_spectral(
-        data, feature_cfg, cache_dir, force=force_feature_cache)
+    if df is None:
+        return _assemble_elliptic(data, feature_cfg, cache_dir, force_feature_cache, standardization)
+    return _assemble_ibm_aml(data, df, feature_cfg, cache_dir, force_feature_cache, standardization)
 
-    pe = spectral["lap_pe"]
-    cent = spectral["centralities"]
-    pe_names = [f"lap_pe_{i}" for i in range(pe.size(1))]
-    cent_names = spectral["centrality_names"]
 
-    X = torch.cat([raw_x, local_x, pe, cent], dim=1)
-    columns = raw_names + local_names + pe_names + cent_names
-
+def _finalize(data, X, columns, group_dims, cache_meta, standardization, dataset):
+    """Shared tail: standardize train-only (or re-apply), write data.x, build feat_meta."""
     if standardization is None:
         X_std, stats = standardize_train_only(X, data.train_mask)
     else:
         X_std, stats = apply_standardization(X, standardization), standardization
-
     data.x = X_std.float()
     feat_meta = {
-        "columns": columns,
-        "n_features": len(columns),
-        "group_dims": {"raw": raw_x.size(1), "local": local_x.size(1),
-                       "spectral_pe": pe.size(1), "centralities": cent.size(1)},
-        "standardization": stats,
-        "spectral_cache": cache_meta,
-        "feature_spec_version": FEATURE_SPEC_VERSION,
+        "columns": columns, "n_features": len(columns), "group_dims": group_dims,
+        "standardization": stats, "spectral_cache": cache_meta,
+        "feature_spec_version": FEATURE_SPEC_VERSION, "dataset": dataset,
     }
     return data, feat_meta
+
+
+def _spectral_part(data, feature_cfg, cache_dir, force):
+    """Compute/load the spectral group and return (pe, cent, names, cache_meta) — or empty if off."""
+    if int(feature_cfg.get("laplacian_pe_k", 0)) <= 0 and not feature_cfg.get("centralities"):
+        empty = torch.zeros((int(data.num_nodes), 0), dtype=torch.float)
+        return empty, empty, ([], []), {"hit": False, "key": None, "graph_hash": None, "path": None}
+    spectral, cache_meta = load_or_compute_spectral(data, feature_cfg, cache_dir, force=force)
+    pe, cent = spectral["lap_pe"], spectral["centralities"]
+    pe_names = [f"lap_pe_{i}" for i in range(pe.size(1))]
+    return pe, cent, (pe_names, spectral["centrality_names"]), cache_meta
+
+
+def _assemble_ibm_aml(data, df: pd.DataFrame, feature_cfg, cache_dir, force, standardization):
+    raw_x, raw_names = build_raw_features(df)
+    local_x, local_names = build_local_features(
+        data, df, max_degree=int(feature_cfg.get("max_degree", 2000)))
+    pe, cent, (pe_names, cent_names), cache_meta = _spectral_part(data, feature_cfg, cache_dir, force)
+    X = torch.cat([raw_x, local_x, pe, cent], dim=1)
+    columns = raw_names + local_names + pe_names + cent_names
+    dims = {"raw": raw_x.size(1), "local": local_x.size(1),
+            "spectral_pe": pe.size(1), "centralities": cent.size(1)}
+    return _finalize(data, X, columns, dims, cache_meta, standardization, "ibm_aml")
+
+
+def _assemble_elliptic(data, feature_cfg, cache_dir, force, standardization):
+    """Elliptic feature path: provided node features as the 'raw' group + optional spectral.
+
+    There is no transaction df, so the IBM-AML raw/local pipelines (which need amount/currency/etc.
+    columns) don't apply; the dataset's own features are the raw group. Spectral PE + centralities
+    are computed from edge_index via the same cached, per-component machinery.
+    """
+    raw_x = data.x
+    raw_names = [f"elliptic_feat_{i}" for i in range(raw_x.size(1))]
+    pe, cent, (pe_names, cent_names), cache_meta = _spectral_part(data, feature_cfg, cache_dir, force)
+    X = torch.cat([raw_x, pe, cent], dim=1)
+    columns = raw_names + pe_names + cent_names
+    dims = {"raw": raw_x.size(1), "local": 0, "spectral_pe": pe.size(1), "centralities": cent.size(1)}
+    return _finalize(data, X, columns, dims, cache_meta, standardization, "elliptic")

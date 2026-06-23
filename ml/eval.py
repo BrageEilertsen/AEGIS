@@ -22,7 +22,7 @@ import torch
 
 from ml.common import compute_metrics, illicit_scores
 from ml.features.assemble import assemble_features
-from ml.models.gcn import build_model
+from ml.models import build_model
 from ml.train import build_graph, feature_config, resolve_device
 
 

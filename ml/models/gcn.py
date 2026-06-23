@@ -13,6 +13,8 @@ from torch_geometric.utils import to_undirected
 
 
 class GCN(torch.nn.Module):
+    supports_attention = False
+
     def __init__(self, in_channels: int, hidden_channels: int = 64, num_layers: int = 2,
                  dropout: float = 0.5, num_classes: int = 2):
         super().__init__()
@@ -35,18 +37,3 @@ class GCN(torch.nn.Module):
                 x = F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
         return x  # logits [N, num_classes]
-
-
-def build_model(config: dict, in_channels: int) -> torch.nn.Module:
-    """Factory keyed on config['model']. Phase 2 = GCN; GraphSAGE/GAT raise (Phase 3)."""
-    model_type = config.get("model", "gcn")
-    arch = config.get("arch", {})
-    if model_type == "gcn":
-        return GCN(
-            in_channels=in_channels,
-            hidden_channels=int(arch.get("hidden_channels", 64)),
-            num_layers=int(arch.get("num_layers", 2)),
-            dropout=float(arch.get("dropout", 0.5)),
-            num_classes=2,
-        )
-    raise NotImplementedError(f"model '{model_type}' is not implemented in Phase 2 (GCN only)")

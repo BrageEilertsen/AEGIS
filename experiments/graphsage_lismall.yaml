@@ -1,0 +1,51 @@
+# AEGIS — GraphSAGE on IBM-AML LI-Small (spec §7.3 step 2, Phase 3). GPU (a100q) via Slurm.
+# Inductive, neighbour-sampling. neighbor_sampling activates NeighborLoader on the GPU node
+# (needs pyg-lib/torch-sparse); it falls back to full-batch with a warning where unavailable.
+
+config_version: 1
+device: auto
+model: graphsage
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  dropout: 0.5
+  aggregator: mean              # mean | max | lstm
+
+dataset:
+  name: ibm_aml
+  variant: LI-Small
+  synthetic: false
+  trans_csv: data/raw/LI-Small_Trans.csv
+  nrows: null
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: null
+  max_out_per_in: 200
+  graph_cache_dir: data/processed
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 16
+    centralities: [pagerank, eigenvector]
+    communities: false
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: focal
+  focal_gamma: 2.0
+  optimizer: adamw
+  lr: 0.005
+  weight_decay: 0.0005
+  max_epochs: 300
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 30 }
+  lr_schedule: cosine
+  neighbor_sampling: { num_neighbors: [25, 10], batch_size: 512 }   # GPU; full-batch fallback otherwise
+
+eval:
+  min_precision: 0.9

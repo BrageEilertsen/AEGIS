@@ -26,7 +26,7 @@ from ml.features.assemble import (
     apply_standardization, assemble_features, feature_cache_key, standardize_train_only,
 )
 from ml.features.spectral import _symmetrize_csr, graph_hash, laplacian_pe
-from ml.models.gcn import build_model
+from ml.models import build_model
 
 DT = 24 * 3600
 

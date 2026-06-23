@@ -1,0 +1,44 @@
+# AEGIS — GAT on a tiny SYNTHETIC Elliptic-shaped fixture (login-CPU, NO download).
+# Exercises the full Elliptic code path (loader-shape, unknown-label masking, df=None feature
+# assembly, GAT forward + attention) in seconds. NOT a real benchmark.
+#   python ml/train.py --config experiments/gat_elliptic_fixture.yaml \
+#       --out-dir /tmp/elf --feature-cache /tmp/fc --seed 0
+
+config_version: 1
+device: cpu
+model: gat
+arch:
+  hidden_channels: 16
+  num_layers: 2
+  heads: 4
+  dropout: 0.5
+  attention_dropout: 0.3
+  variant: gat_v2
+
+dataset:
+  name: elliptic
+  fixture: true                 # make_elliptic_fixture (no download)
+  fixture_nodes: 400
+
+features:
+  spectral:
+    laplacian_pe_k: 8
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: weighted_ce
+  optimizer: adamw
+  lr: 0.01
+  weight_decay: 0.0005
+  max_epochs: 40
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 15 }
+  lr_schedule: plateau
+  lr_schedule_params: { factor: 0.5, patience: 5, min_lr: 1.0e-6 }
+
+eval:
+  min_precision: 0.9
