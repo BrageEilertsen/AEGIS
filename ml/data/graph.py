@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from bisect import bisect_left, bisect_right
 from pathlib import Path
 
 import numpy as np
@@ -144,23 +143,31 @@ def build_transaction_graph(
     out_by_account: dict[str, list[int]] = {}
     for i in range(n):
         out_by_account.setdefault(src[i], []).append(i)
-    # Sort each account's outgoing transactions by time for binary-search windowing.
+    # Sort each account's outgoing transactions by time ONCE, and cache the sorted index array
+    # and its time array. Building these per account up front (not per incoming transaction)
+    # keeps the windowing at O(E log) instead of Σ_account(in_deg·out_deg) — the latter is
+    # quadratic on hub accounts (mules/shells), which are common in AML data.
+    out_idx_by_account: dict[str, np.ndarray] = {}
+    out_t_by_account: dict[str, np.ndarray] = {}
     for acct, idxs in out_by_account.items():
-        idxs.sort(key=lambda k: t[k])
+        arr = np.array(idxs, dtype=np.int64)
+        arr = arr[np.argsort(t[arr], kind="stable")]
+        out_idx_by_account[acct] = arr
+        out_t_by_account[acct] = t[arr]
 
     rows: list[int] = []
     cols: list[int] = []
     for i in range(n):
-        outs = out_by_account.get(dst[i])
-        if not outs:
+        idx_arr = out_idx_by_account.get(dst[i])
+        if idx_arr is None:
             continue
-        times = [t[k] for k in outs]
-        lo = bisect_left(times, t[i])               # t_j >= t_i
-        hi = bisect_right(times, t[i] + delta_t_seconds)  # t_j <= t_i + Δt
-        window = outs[lo:hi]
-        if max_out_per_in is not None and len(window) > max_out_per_in:
+        times = out_t_by_account[dst[i]]
+        lo = np.searchsorted(times, t[i], side="left")                    # t_j >= t_i
+        hi = np.searchsorted(times, t[i] + delta_t_seconds, side="right")  # t_j <= t_i + Δt
+        window = idx_arr[lo:hi]
+        if max_out_per_in is not None and window.size > max_out_per_in:
             window = window[:max_out_per_in]
-        for j in window:
+        for j in window.tolist():
             if j != i:
                 rows.append(i)
                 cols.append(j)

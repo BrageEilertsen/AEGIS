@@ -149,17 +149,17 @@ def make_synthetic_aml(
         source = rng.choice(accounts)
         mules = rng.sample(accounts, 8)
         for i, m in enumerate(mules):
-            add(source, m, base_minute + i, rng.uniform(900, 1000), illicit=True)
+            add(source, m, base_minute + i, rng.uniform(8000, 9000), illicit=True)
 
     def layering_chain(base_minute):
         chain = rng.sample(accounts, 6)
         for i in range(len(chain) - 1):
-            add(chain[i], chain[i + 1], base_minute + i * 3, rng.uniform(4000, 4200), illicit=True)
+            add(chain[i], chain[i + 1], base_minute + i * 3, rng.uniform(9000, 11000), illicit=True)
 
     def circular(base_minute):
         cyc = rng.sample(accounts, 5)
         for i in range(len(cyc)):
-            add(cyc[i], cyc[(i + 1) % len(cyc)], base_minute + i * 2, rng.uniform(2000, 2100), illicit=True)
+            add(cyc[i], cyc[(i + 1) % len(cyc)], base_minute + i * 2, rng.uniform(11000, 13000), illicit=True)
 
     for k in range(6):
         fan_out(rng.randrange(horizon))

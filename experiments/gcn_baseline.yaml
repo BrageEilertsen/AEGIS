@@ -3,6 +3,8 @@
 # number must be reproducible from a committed config + fixed seed.
 # Values below are PROVISIONAL placeholders — tune in Phase 2.
 
+config_version: 1
+device: auto                    # auto | cpu | cuda  (auto -> cuda if available)
 model: gcn                      # gcn | graphsage | gat | temporal
 arch:
   hidden_channels: 64
@@ -12,9 +14,14 @@ arch:
 dataset:
   name: ibm_aml                 # ibm_aml | elliptic
   variant: LI-Small             # start small for fast iteration
+  synthetic: false              # true -> ml.data.loaders.make_synthetic_aml (offline smoke test)
+  trans_csv: data/raw/LI-Small_Trans.csv
+  nrows: null                   # cap rows read from the real CSV (quick iteration)
   graph: transaction_as_node    # transaction_as_node | account_as_node
   delta_t_hours: 24             # time window Δt for flow edges (spec §6.3)
-  subsample_legit: null         # optional negative subsampling ratio on TRAIN only
+  subsample_legit: null         # keep ALL illicit + ratio*n_illicit legit (before split); null = off
+  max_out_per_in: 200           # hub guard for flow-edge construction (spec §6.3)
+  graph_cache_dir: data/processed   # content-addressed graph cache (gitignored)
 
 features:
   raw: true                     # amount, currency, payment format, timestamp, bank ids
@@ -30,15 +37,18 @@ split:
 
 train:
   loss: weighted_ce             # weighted_ce | focal  (compare; spec §7.4)
+  focal_gamma: 2.0              # used when loss: focal
   class_weight: auto
   optimizer: adamw
   lr: 0.01
   weight_decay: 0.0005
   max_epochs: 200
+  grad_clip_norm: 1.0
   early_stopping:
     monitor: val_pr_auc         # PR-AUC on the illicit class is the headline metric (§7.6)
     patience: 20
-  lr_schedule: plateau
+  lr_schedule: plateau          # plateau | cosine
+  lr_schedule_params: { factor: 0.5, patience: 5, min_lr: 1.0e-6 }   # for plateau
 
 eval:
   min_precision: 0.9            # for the recall-at-fixed-precision metric (§7.6)
