@@ -45,6 +45,13 @@ def explain_node(model, data, node_idx: int, feature_meta: dict, *, model_type: 
                  pattern_labels=None) -> ExplanationContract:
     """Produce the explanation contract for one flagged node (spec §7.7)."""
     model.eval()
+    # Models that symmetrize edges inside forward() (e.g. GCN's to_undirected) would desync
+    # GNNExplainer's edge-mask from the propagated edge count. Run the explanation on the already-
+    # undirected graph so the model's transform is idempotent and edges stay consistent throughout.
+    if getattr(model, "symmetrizes_edges", False):
+        from torch_geometric.utils import to_undirected
+        data = data.clone()
+        data.edge_index = to_undirected(data.edge_index, num_nodes=int(data.num_nodes))
     with torch.no_grad():
         logits = model(data)
     scores_all = torch.as_tensor(illicit_scores(logits))

@@ -14,6 +14,7 @@ from torch_geometric.utils import to_undirected
 
 class GCN(torch.nn.Module):
     supports_attention = False
+    symmetrizes_edges = True   # forward() calls to_undirected; explanations run on the undirected graph
 
     def __init__(self, in_channels: int, hidden_channels: int = 64, num_layers: int = 2,
                  dropout: float = 0.5, num_classes: int = 2):

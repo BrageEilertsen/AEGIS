@@ -1,0 +1,3 @@
+# AEGIS Streamlit prototype (spec §9). Talks to the inference service over HTTP.
+streamlit>=1.40
+httpx>=0.27
