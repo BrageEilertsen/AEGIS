@@ -1,32 +1,36 @@
 #!/bin/bash
-# Download the IBM Transactions for Anti-Money Laundering dataset (spec §6.1).
+# Download the IBM Transactions for Anti-Money Laundering dataset (spec §6.1) via kagglehub.
 #
 # Public, synthetic, labelled, no PII. Raw data is gitignored and never committed (spec §6).
-# Start with the LI-Small variant (laundering ratio ~0.05-0.1%, realistic base rate); scale to
-# LI-Medium once the pipeline is stable.
-#
+# This PUBLIC dataset downloads ANONYMOUSLY through kagglehub — no Kaggle token / kaggle.json needed.
 # Kaggle dataset: ealtman2019/ibm-transactions-for-anti-money-laundering-aml
-# Files per variant: <variant>_Trans.csv (transactions), accounts CSV, and a patterns file
-# enumerating the injected laundering typologies.
 #
-# Prerequisites:
-#   - Kaggle CLI:  pip install kaggle
-#   - API token:   ~/.kaggle/kaggle.json  (chmod 600), from your Kaggle account settings.
-#
-# Phase 0: placeholder. Flesh out + verify in Phase 1.
+# We pull only the LI-Small files (transactions + patterns); the full dataset (all HI/LI variants)
+# is multiple GB. The transactions CSV is ~620 MB. Files are cached under
+# data/raw/kagglehub/... and symlinked to data/raw/<name> (the path ml/train.py expects).
 set -euo pipefail
 
-# This cluster TLS-intercepts outbound HTTPS; point requests-based tools (kaggle) at the
-# system CA bundle so certificate verification succeeds.
+cd "$(dirname "$0")/.."   # repo root
+
+# This cluster TLS-intercepts outbound HTTPS; point Python at the system CA bundle.
 CA="${AEGIS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
 [ -f "$CA" ] && export REQUESTS_CA_BUNDLE="$CA" SSL_CERT_FILE="$CA"
+export KAGGLEHUB_CACHE="${KAGGLEHUB_CACHE:-$PWD/data/raw/kagglehub}"
 
-RAW_DIR="$(cd "$(dirname "$0")" && pwd)/raw"
-mkdir -p "$RAW_DIR"
+[ -d env ] && source env/bin/activate || true
+python -c "import kagglehub" 2>/dev/null || pip install -q kagglehub
 
-echo "TODO (Phase 1): download IBM-AML LI-Small into $RAW_DIR, e.g.:"
-echo "  kaggle datasets download -d ealtman2019/ibm-transactions-for-anti-money-laundering-aml -p \"$RAW_DIR\""
-echo "  unzip -n \"$RAW_DIR\"/*.zip -d \"$RAW_DIR\""
-echo
-echo "Then confirm LI-Small_Trans.csv (+ accounts/patterns files) are present."
-echo "Raw data stays under data/raw/ and is gitignored — never commit it."
+python - <<'PY'
+import kagglehub, os, pathlib
+ds = "ealtman2019/ibm-transactions-for-anti-money-laundering-aml"
+raw = pathlib.Path("data/raw"); raw.mkdir(parents=True, exist_ok=True)
+# Add HI-/Medium variants here later if needed (spec §6.1: start LI-Small, scale to LI-Medium).
+for fname in ["LI-Small_Trans.csv", "LI-Small_Patterns.txt"]:
+    p = kagglehub.dataset_download(ds, path=fname)
+    link = raw / fname
+    if link.exists() or link.is_symlink():
+        link.unlink()
+    link.symlink_to(p)
+    print(f"OK {fname}: {os.path.getsize(p)/1e6:.1f} MB  ->  data/raw/{fname}")
+print("done — raw data stays under data/raw/ (gitignored), never committed.")
+PY
