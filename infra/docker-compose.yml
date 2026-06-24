@@ -28,11 +28,19 @@ services:
       - ../data:/app/data             # raw CSV + processed graph cache for the startup rebuild
       - ../infra/seed:/data/seed:ro   # seeded demo adversarial before/after artifact
     ports: ["8000:8000"]
+    healthcheck:
+      # /health triggers the one-time model+graph load (~30-60s) then returns 200.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\" || exit 1"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 90s
 
   api:
     build: { context: ../api, dockerfile: Dockerfile }
     depends_on:
       postgres: { condition: service_healthy }
+      inference: { condition: service_healthy }   # BFF seeds its dataset from inference at startup
     environment:
       AEGIS_DB_URL: jdbc:postgresql://postgres:5432/aegis
       AEGIS_DB_USER: aegis
