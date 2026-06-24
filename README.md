@@ -113,5 +113,31 @@ datasets via Slurm once they are downloaded.
 - **Phase 5 — adversarial robustness:** structural evasion attack + adversarial-training/self-loop
   defense + reproducible before/after artifact (`ml/adversarial/`).
 
-**Next (built on the Mac, not this cluster):** Phase 6 Streamlit/Gradio prototype, Phase 7 Spring
-Boot + Angular + FastAPI, Phase 8 Azure deploy. Build order & acceptance criteria per spec §12.
+### Real LI-Small result (first run, GCN baseline, subsampled)
+6.92M transactions, 3,565 illicit (0.05%). On the held-out temporal test split: **PR-AUC 0.236
+(~9× the base rate), ROC-AUC 0.88.** Honest findings: at strict precision≥0.9 the baseline's
+recall is 0 (hard under this imbalance); and a GAT *without self-loops* collapses to ROC-AUC 0.57
+on this fragmented graph (avg degree 0.14, mostly isolated transactions) because it discards
+isolated nodes' own features — re-enabling self-loops recovers ROC-AUC 0.88. The same self-loop
+gap drives the adversarial demo (structure-reliant model fooled; self-loop model holds).
+
+## Running the app (Phases 6–7)
+
+The application layer (built here, runs on the Mac/locally). Only the ML core trains on the cluster.
+
+- **`inference/`** — FastAPI service wrapping the checkpoint (`/score /flags /explain /metrics
+  /adversarial`); verified end-to-end against the real model. See [inference/README.md](inference/README.md).
+- **`prototype/`** — Streamlit Phase-6 de-risk UI over the service.
+- **`api/`** — Spring Boot 3 / Java 21 BFF: layered controllers/services/repositories, RestClient
+  to FastAPI, graph-capping, JPA (Postgres), `@WebMvcTest` + capping unit tests.
+- **`frontend/`** — Angular 17 + Cytoscape.js: dashboard, capped flagged-subgraph canvas, slide-in
+  explanation panel, adversarial before/after, metrics panel.
+
+One-command full stack (Postgres + inference + API + frontend), with a seeded adversarial demo:
+```bash
+cd infra && cp .env.example .env     # set AEGIS_CHECKPOINT to your best run dir
+docker compose up --build            # UI at http://localhost:4200, API :8080, inference :8000
+```
+
+**Next:** Phase 8 — deploy to Azure (Container Apps + Azure DB for PostgreSQL); README +
+architecture diagram + demo video. Build order & acceptance criteria per spec §12.

@@ -21,11 +21,12 @@ services:
     environment:
       AEGIS_CHECKPOINT: ${AEGIS_CHECKPOINT:-/data/outputs/gcn_lismall/best.pt}
       AEGIS_FEATURE_CACHE: /data/cache/features
-      AEGIS_ADVERSARIAL_ARTIFACT: ${AEGIS_ADVERSARIAL_ARTIFACT:-}
+      AEGIS_ADVERSARIAL_ARTIFACT: ${AEGIS_ADVERSARIAL_ARTIFACT:-/data/seed/demo_adversarial_artifact.json}
     volumes:
       - ../outputs:/data/outputs:ro
       - ../cache:/data/cache
-      - ../data:/app/data:ro          # raw CSV for graph rebuild at startup
+      - ../data:/app/data             # raw CSV + processed graph cache for the startup rebuild
+      - ../infra/seed:/data/seed:ro   # seeded demo adversarial before/after artifact
     ports: ["8000:8000"]
 
   api:

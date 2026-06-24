@@ -1,0 +1,294 @@
+{
+  "seed": 42,
+  "split": "test",
+  "graph": {
+    "source": "ibm_aml",
+    "num_nodes": 4108,
+    "num_edges": 2854,
+    "num_illicit": 108,
+    "illicit_ratio": 0.02629,
+    "graph_hash": "f0e0c4669b846404",
+    "feature_spec_version": "v2"
+  },
+  "attack": {
+    "kind": "greedy_edge_perturbation",
+    "moves": [
+      "remove",
+      "mule"
+    ],
+    "budget_frac": 0.2,
+    "budget_max": 15,
+    "net_flow_tol": 0.01,
+    "score_threshold": 0.5,
+    "top_k": 20,
+    "n_targets": 6,
+    "deterministic": true
+  },
+  "models": {
+    "naive": {
+      "model": "gat",
+      "ckpt": "/tmp/adv/naive/best.pt",
+      "hardened": false
+    },
+    "hardened": {
+      "model": "gat",
+      "ckpt": "/tmp/adv/hardened/best.pt",
+      "hardened": true,
+      "adversarial_training": {
+        "fraction": 0.5,
+        "budget_frac": 0.5,
+        "budget_max": 10,
+        "seed": 42
+      }
+    }
+  },
+  "metrics": {
+    "naive": {
+      "clean": {
+        "n_total": 823,
+        "n_pos": 10,
+        "pos_rate": 0.012151,
+        "pr_auc": 0.06829349245301687,
+        "roc_auc": 0.6811193111931119,
+        "recall_at_precision": 0.0,
+        "min_precision": 0.9,
+        "threshold": 1.0,
+        "f1_illicit": 0.0,
+        "confusion_matrix": {
+          "tn": 813,
+          "fp": 0,
+          "fn": 10,
+          "tp": 0
+        }
+      },
+      "perturbed": {
+        "n_total": 823,
+        "n_pos": 10,
+        "pos_rate": 0.012151,
+        "pr_auc": 0.013081161764262167,
+        "roc_auc": 0.5036900369003691,
+        "recall_at_precision": 0.0,
+        "min_precision": 0.9,
+        "threshold": 1.0,
+        "f1_illicit": 0.0,
+        "confusion_matrix": {
+          "tn": 813,
+          "fp": 0,
+          "fn": 10,
+          "tp": 0
+        }
+      }
+    },
+    "hardened": {
+      "clean": {
+        "n_total": 823,
+        "n_pos": 10,
+        "pos_rate": 0.012151,
+        "pr_auc": 0.8298523698523698,
+        "roc_auc": 0.9982779827798278,
+        "recall_at_precision": 0.2,
+        "min_precision": 0.9,
+        "threshold": 0.9940541386604309,
+        "f1_illicit": 0.3333333333333333,
+        "confusion_matrix": {
+          "tn": 813,
+          "fp": 0,
+          "fn": 8,
+          "tp": 2
+        }
+      },
+      "perturbed": {
+        "n_total": 823,
+        "n_pos": 10,
+        "pos_rate": 0.012151,
+        "pr_auc": 0.9305555555555555,
+        "roc_auc": 0.9988929889298893,
+        "recall_at_precision": 0.7,
+        "min_precision": 0.9,
+        "threshold": 0.9330022931098938,
+        "f1_illicit": 0.8235294117647058,
+        "confusion_matrix": {
+          "tn": 813,
+          "fp": 0,
+          "fn": 3,
+          "tp": 7
+        }
+      }
+    }
+  },
+  "degradation": {
+    "naive_recall_drop": 0.0,
+    "hardened_recall_drop": -0.5,
+    "robustness_gap": 0.5,
+    "naive_pr_auc_drop": 0.0552,
+    "hardened_pr_auc_drop": -0.1007,
+    "naive_attack_success_rate": 1.0,
+    "hardened_attack_success_rate": 0.0,
+    "naive_mean_score_drop": 0.3542,
+    "hardened_mean_score_drop": 0.0992,
+    "target_robustness_gap": 1.0
+  },
+  "per_target": [
+    {
+      "node_id": 3510,
+      "y": 1,
+      "naive_score_before": 0.855331,
+      "naive_score_after": 0.236444,
+      "naive_delta": -0.618887,
+      "hardened_score_before": 0.979176,
+      "hardened_score_after": 0.687216,
+      "hardened_delta": -0.291959,
+      "n_edits": 1,
+      "mules_added": 1,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "mule",
+          3509,
+          3510
+        ]
+      ]
+    },
+    {
+      "node_id": 3512,
+      "y": 1,
+      "naive_score_before": 0.723467,
+      "naive_score_after": 0.428363,
+      "naive_delta": -0.295104,
+      "hardened_score_before": 0.961494,
+      "hardened_score_after": 0.939724,
+      "hardened_delta": -0.02177,
+      "n_edits": 1,
+      "mules_added": 0,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "remove",
+          3510,
+          3512
+        ]
+      ]
+    },
+    {
+      "node_id": 3509,
+      "y": 1,
+      "naive_score_before": 0.697091,
+      "naive_score_after": 0.428363,
+      "naive_delta": -0.268728,
+      "hardened_score_before": 0.984792,
+      "hardened_score_after": 0.933016,
+      "hardened_delta": -0.051776,
+      "n_edits": 1,
+      "mules_added": 0,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "remove",
+          3508,
+          3509
+        ]
+      ]
+    },
+    {
+      "node_id": 3347,
+      "y": 1,
+      "naive_score_before": 0.696057,
+      "naive_score_after": 0.428363,
+      "naive_delta": -0.267694,
+      "hardened_score_before": 0.996698,
+      "hardened_score_after": 0.937212,
+      "hardened_delta": -0.059486,
+      "n_edits": 1,
+      "mules_added": 0,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "remove",
+          3346,
+          3347
+        ]
+      ]
+    },
+    {
+      "node_id": 3345,
+      "y": 1,
+      "naive_score_before": 0.810706,
+      "naive_score_after": 0.338044,
+      "naive_delta": -0.472662,
+      "hardened_score_before": 0.96668,
+      "hardened_score_after": 0.93594,
+      "hardened_delta": -0.030739,
+      "n_edits": 1,
+      "mules_added": 0,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "remove",
+          3344,
+          3345
+        ]
+      ]
+    },
+    {
+      "node_id": 3346,
+      "y": 1,
+      "naive_score_before": 0.540308,
+      "naive_score_after": 0.338044,
+      "naive_delta": -0.202264,
+      "hardened_score_before": 0.98242,
+      "hardened_score_after": 0.842973,
+      "hardened_delta": -0.139447,
+      "n_edits": 1,
+      "mules_added": 0,
+      "net_flow_drift": 0.0,
+      "edits": [
+        [
+          "remove",
+          3345,
+          3346
+        ]
+      ]
+    }
+  ],
+  "perturbed_subgraph": {
+    "target_node": 3510,
+    "edges_before": [
+      [
+        3416,
+        3510
+      ],
+      [
+        3509,
+        3510
+      ],
+      [
+        3510,
+        3512
+      ]
+    ],
+    "edges_after": [
+      [
+        3416,
+        3510
+      ],
+      [
+        4108,
+        3510
+      ]
+    ],
+    "injected_mules": [
+      4108
+    ],
+    "node_scores_before": {
+      "3510": 0.855331
+    },
+    "node_scores_after": {
+      "3510": 0.236444
+    }
+  },
+  "constraint_violations": [],
+  "summary": "Structural attack pushed 100% of the naive model's flagged transactions below the detection threshold (mean score drop 0.35); against the adversarially-trained model only 0% fell (mean drop 0.10). Target robustness gap +100%. Whole-set PR-AUC drop: naive +0.055 vs hardened -0.101.",
+  "generated_at": "2026-06-23T20:56:34Z",
+  "artifact_version": "v1",
+  "schema_version": "1.0"
+}
