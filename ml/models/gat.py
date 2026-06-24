@@ -22,12 +22,16 @@ class GAT(torch.nn.Module):
 
     def __init__(self, in_channels: int, hidden_channels: int = 64, num_layers: int = 2,
                  dropout: float = 0.5, heads: int = 8, attention_dropout: float = 0.3,
-                 variant: str = "gat_v2", num_classes: int = 2):
+                 variant: str = "gat_v2", num_classes: int = 2, add_self_loops: bool = False):
         super().__init__()
         self.dropout = dropout
+        # add_self_loops=False (default) keeps attention 1:1 with input edges for explainability
+        # (Phase 4). Setting it True keeps a node's OWN features flowing even when its edges are
+        # removed — an adversarial-robustness defense (Phase 5), at the cost of that alignment.
+        self.add_self_loops = add_self_loops
         Conv = GATv2Conv if variant == "gat_v2" else GATConv
         self.convs = torch.nn.ModuleList()
-        kw = dict(dropout=attention_dropout, add_self_loops=False)
+        kw = dict(dropout=attention_dropout, add_self_loops=add_self_loops)
         if num_layers == 1:
             self.convs.append(Conv(in_channels, num_classes, heads=1, concat=False, **kw))
         else:

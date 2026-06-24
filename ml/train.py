@@ -25,6 +25,9 @@ import torch
 from ml.common import (
     build_loss, compute_class_weights, compute_metrics, illicit_scores, set_deterministic,
 )
+from ml.adversarial.defenses import (
+    make_adversarial_helpers, train_epoch_adversarial, validate_robust_aggregation,
+)
 from ml.data.elliptic import elliptic_temporal_masks, load_elliptic1, make_elliptic_fixture
 from ml.data.graph import build_transaction_graph, load_or_build, subsample_legitimate
 from ml.data.loaders import load_ibm_aml, make_synthetic_aml
@@ -65,6 +68,7 @@ def validate_config(cfg: dict) -> None:
         raise ValueError(f"split.ratios must sum to 1, got {ratios}")
     if cfg.get("train", {}).get("loss", "weighted_ce") not in {"weighted_ce", "focal"}:
         raise ValueError("train.loss must be 'weighted_ce' or 'focal'")
+    validate_robust_aggregation(cfg)
 
 
 def resolve_device(spec: str) -> torch.device:
@@ -237,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
     loader = _make_neighbor_loader(data, cfg)   # None -> full-batch (the tested default)
     if loader is not None:
         print(f"[sampling] neighbour sampling enabled: {train_cfg.get('neighbor_sampling')}")
+    adv_helpers = make_adversarial_helpers(cfg, df, data, feature_config(cfg),
+                                           feat_meta["standardization"], device)
+    if adv_helpers is not None:
+        print(f"[defense] adversarial training enabled: {train_cfg.get('adversarial_training')}")
     loss_fn = build_loss(train_cfg, class_weights.to(device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_cfg.get("lr", 0.01)),
                                   weight_decay=float(train_cfg.get("weight_decay", 5e-4)))
@@ -256,7 +264,10 @@ def main(argv: list[str] | None = None) -> int:
     best_val, best_epoch, best_state, no_improve = -1.0, -1, None, 0
     history = []
     for epoch in range(1, max_epochs + 1):
-        if loader is not None:
+        if adv_helpers is not None:
+            loss = train_epoch_adversarial(model, data, adv_helpers, optimizer, loss_fn,
+                                           grad_clip, epoch, args.seed)
+        elif loader is not None:
             loss = train_epoch_sampled(model, loader, optimizer, loss_fn, grad_clip, device)
         else:
             loss = train_epoch(model, data, optimizer, loss_fn, grad_clip)

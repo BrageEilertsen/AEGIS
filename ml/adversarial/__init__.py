@@ -1,12 +1,27 @@
 """Adversarial robustness subsystem (spec §7.8) — the showpiece.
 
-Threat model: an adaptive launderer perturbing graph structure under realistic constraints
-(split transfers / structuring, inject pass-through mule accounts, rewire flows; cannot change
-labels, limited edit budget, must preserve net flow).
+A model-agnostic structural evasion attack (GreedyEdgeAttack), an adversarial-training defense
+(train_epoch_adversarial) + robust median aggregation, and a reproducible before/after artifact
+(run) emitting AdversarialArtifactContract for the app's /adversarial demo.
 
-- Attacks: >=1 structural evasion (Nettack-style targeted edge perturbation and/or node injection).
-- Defenses: >=1 (adversarial training, robust/median aggregation, structural regularization).
-- Artifact: a reproducible before/after (naïve fooled -> hardened holds) the live app can trigger.
-
-Phase 0: placeholder. Implemented in Phase 5.
+``run`` is imported lazily: the runner pulls ``ml.train``, which imports this package's defenses —
+deferring keeps package import acyclic.
 """
+from __future__ import annotations
+
+from ml.adversarial.attacks import AttackConfig, GreedyEdgeAttack, query_scores, select_target_nodes
+from ml.adversarial.contract import SCHEMA_VERSION, AdversarialArtifactContract
+from ml.adversarial.defenses import (
+    make_adversarial_helpers, train_epoch_adversarial, validate_robust_aggregation,
+)
+
+
+def run(*args, **kwargs):
+    """Run the before/after artifact (see ml.adversarial.runner.run). Imported lazily."""
+    from ml.adversarial.runner import run as _run
+    return _run(*args, **kwargs)
+
+
+__all__ = ["AttackConfig", "GreedyEdgeAttack", "query_scores", "select_target_nodes",
+           "AdversarialArtifactContract", "SCHEMA_VERSION", "make_adversarial_helpers",
+           "train_epoch_adversarial", "validate_robust_aggregation", "run"]

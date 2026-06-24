@@ -1,0 +1,54 @@
+# AEGIS — adversarially-HARDENED GAT on synthetic data (login-CPU demo).
+# Same as gat_synthetic.yaml + train.adversarial_training -> mixes clean + structurally-perturbed
+# loss each epoch (train-only). Pairs with gat_synthetic.yaml (naive) for the before/after artifact.
+
+config_version: 1
+device: cpu
+model: gat
+arch:
+  hidden_channels: 16
+  num_layers: 2
+  dropout: 0.5
+  heads: 4
+  attention_dropout: 0.3
+  variant: gat_v2
+  add_self_loops: true          # defense: keep the node's own features under structural attack
+
+dataset:
+  name: ibm_aml
+  variant: synthetic
+  synthetic: true
+  synthetic_legit: 4000
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: null
+  max_out_per_in: 200
+  graph_cache_dir: /tmp/aegis_graphcache
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 8
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: weighted_ce
+  optimizer: adamw
+  lr: 0.01
+  weight_decay: 0.0005
+  max_epochs: 100
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 30 }
+  lr_schedule: plateau
+  lr_schedule_params: { factor: 0.5, patience: 6, min_lr: 1.0e-6 }
+  # Strong structural augmentation so the model learns to flag illicit txns from the attack-
+  # invariant raw amount even when their edges are perturbed (resisting the edge-removal attack).
+  adversarial_training: { fraction: 0.5, budget_frac: 0.5, budget_max: 10, seed: 42 }
+
+eval:
+  min_precision: 0.9

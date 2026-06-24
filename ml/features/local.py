@@ -92,12 +92,17 @@ def neighbor_amount_stats(edge_index: torch.Tensor, n: int,
     return torch.nan_to_num(out)
 
 
-def build_local_features(data, df: pd.DataFrame, max_degree: int = 2000
+def build_local_features(data, df: pd.DataFrame, max_degree: int = 2000,
+                         node_amount: torch.Tensor | None = None
                          ) -> tuple[torch.Tensor, list[str]]:
     """Return ([N, 8] float tensor, names). NOT standardized.
 
     Columns: log1p(in_deg), log1p(out_deg), log1p(total_deg), clustering_coef, reciprocity,
     neighbor_amt_mean, neighbor_amt_max, neighbor_amt_std.
+
+    ``node_amount`` (log1p paid amount per node) may be passed directly — used by the adversarial
+    refeaturizer for perturbed graphs with injected nodes that have no ``df`` row. Otherwise it is
+    computed from ``df``.
     """
     n = int(data.num_nodes)
     ei = data.edge_index
@@ -105,7 +110,8 @@ def build_local_features(data, df: pd.DataFrame, max_degree: int = 2000
     total_deg = out_deg + in_deg
     clustering = clustering_coefficient(ei, n, max_degree=max_degree)
     recip = reciprocity(ei, n)
-    node_amount = torch.tensor(np.log1p(df[COL_AMT_PAID].to_numpy(dtype=float)), dtype=torch.float)
+    if node_amount is None:
+        node_amount = torch.tensor(np.log1p(df[COL_AMT_PAID].to_numpy(dtype=float)), dtype=torch.float)
     namt = neighbor_amount_stats(ei, n, node_amount)
 
     feats = torch.stack([

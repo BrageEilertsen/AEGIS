@@ -28,7 +28,8 @@ def build_model(config: dict, in_channels: int) -> torch.nn.Module:
     if model_type == "gat":
         return GAT(**common, heads=int(arch.get("heads", 8)),
                    attention_dropout=float(arch.get("attention_dropout", 0.3)),
-                   variant=str(arch.get("variant", "gat_v2")))
+                   variant=str(arch.get("variant", "gat_v2")),
+                   add_self_loops=bool(arch.get("add_self_loops", False)))
     raise NotImplementedError(f"model '{model_type}' is not implemented")
 
 
