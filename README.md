@@ -81,13 +81,37 @@ python tests/test_phase1_graph.py        # correctness tests (edges, Δt window,
 Built graphs are cached content-addressed under `data/processed/` (gitignored), keyed by variant,
 graph view, Δt, subsampling, and split — so they are reused across runs.
 
-## Status
+## Training & evaluation
 
-- **Phase 0 — scaffold:** complete (repo structure, venv, Slurm script, stable train CLI).
-- **Phase 1 — data & graph construction:** complete. Loader for the IBM-AML schema
-  (`ml/data/loaders.py`), transaction-as-node + account-as-node graphs, configurable Δt,
-  temporal 60/20/20 split, content-addressed cache, and a stats CLI
-  (`ml/data/build_graph.py`). Verified on synthetic data; runs unchanged on the real CSV.
-- **Phase 2 — spectral features + GCN baseline:** next.
+```bash
+python ml/train.py --config experiments/gcn_baseline.yaml --out-dir outputs/gcn --feature-cache cache/features --seed 42
+python ml/eval.py  --run-dir outputs/gcn --split test --feature-cache cache/features
+python ml/explain/cli.py --run-dir outputs/gcn --node <idx> --feature-cache cache/features   # explanation contract
+python -m ml.adversarial --naive-ckpt <naive>/best.pt --hardened-ckpt <hardened>/best.pt \
+    --feature-cache cache/features --out-dir outputs/adv --smoke-test                          # before/after artifact
+```
 
-Build order and acceptance criteria per spec §12.
+Each config (`experiments/*.yaml`) is the single source of truth for its run. Every `_synthetic`
+config runs on the login-node CPU with no download; the `lismall` / `elliptic` configs run on a GPU
+node via `cluster/*.slurm`. The full test suite (`tests/test_phase*.py`, 47 tests) runs on CPU.
+
+## Status — cluster ML core (Phases 1–5) complete
+
+All verified on synthetic/fixture data on the login-node CPU; the same code runs on the real
+datasets via Slurm once they are downloaded.
+
+- **Phase 0 — scaffold, venv, Slurm, stable train CLI.**
+- **Phase 1 — data & graph construction:** IBM-AML loader, transaction/account graphs, configurable
+  Δt, temporal 60/20/20 split, content-addressed cache (`ml/data/`).
+- **Phase 2 — spectral features + GCN:** raw + local + Laplacian-PE/centrality features
+  (per-connected-component, train-only standardized, cached), GCN, PR-AUC / recall@precision /
+  F1-illicit metrics (`ml/features/`, `ml/models/gcn.py`, `ml/common.py`).
+- **Phase 3 — GraphSAGE + GAT + Elliptic1 benchmark:** common `forward(data)` interface, GAT
+  per-edge attention, inductive-sampling option, Elliptic loader (`ml/models/`, `ml/data/elliptic.py`).
+- **Phase 4 — explainability:** GNNExplainer + GAT attention + feature attribution + k-hop subgraph
+  + typology matching → versioned explanation contract (`ml/explain/`).
+- **Phase 5 — adversarial robustness:** structural evasion attack + adversarial-training/self-loop
+  defense + reproducible before/after artifact (`ml/adversarial/`).
+
+**Next (built on the Mac, not this cluster):** Phase 6 Streamlit/Gradio prototype, Phase 7 Spring
+Boot + Angular + FastAPI, Phase 8 Azure deploy. Build order & acceptance criteria per spec §12.
