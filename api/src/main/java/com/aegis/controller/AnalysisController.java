@@ -1,0 +1,53 @@
+package com.aegis.controller;
+
+import com.aegis.dto.FlagDto;
+import com.aegis.dto.MetricsDto;
+import com.aegis.service.AnalysisService;
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import java.util.List;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+/** Flagged transactions, explanations (capped subgraph), metrics, and the adversarial before/after.
+ *  datasetId is part of the path for fidelity to the spec; the demo serves a single loaded model. */
+@RestController
+@RequestMapping("/api")
+@Validated
+public class AnalysisController {
+
+    private final AnalysisService service;
+
+    public AnalysisController(AnalysisService service) { this.service = service; }
+
+    @GetMapping("/flags/{datasetId}")
+    public List<FlagDto> flags(@PathVariable Long datasetId,
+                               @RequestParam(defaultValue = "0.5") @Min(0) @Max(1) double threshold,
+                               @RequestParam(defaultValue = "100") @Min(1) @Max(5000) int limit) {
+        return service.flags(threshold, limit);
+    }
+
+    /** The renderable, capped neighbourhood + faithful explanation for one flagged transaction. */
+    @GetMapping("/explain/{datasetId}/{nodeId}")
+    public JsonNode explain(@PathVariable Long datasetId, @PathVariable int nodeId) {
+        return service.explain(datasetId, nodeId);
+    }
+
+    /** Alias: the capped flagged subgraph for a node (spec §8.4) is the explanation's neighbourhood. */
+    @GetMapping("/graph/{datasetId}/{nodeId}")
+    public JsonNode graph(@PathVariable Long datasetId, @PathVariable int nodeId) {
+        return service.explain(datasetId, nodeId).get("neighborhood_subgraph");
+    }
+
+    @GetMapping("/metrics/{datasetId}")
+    public MetricsDto metrics(@PathVariable Long datasetId,
+                              @RequestParam(defaultValue = "test") String split) {
+        return service.metrics(split);
+    }
+
+    @PostMapping("/adversarial/run")
+    public JsonNode adversarial() {
+        return service.adversarial();
+    }
+}

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: aegis-api
+  datasource:
+    url: ${AEGIS_DB_URL:jdbc:postgresql://localhost:5432/aegis}
+    username: ${AEGIS_DB_USER:aegis}
+    password: ${AEGIS_DB_PASSWORD:aegis}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate.format_sql: true
+
+server:
+  port: 8080
+
+aegis:
+  inference:
+    base-url: ${AEGIS_INFERENCE_URL:http://localhost:8000}
+    timeout-seconds: 600
+  graph:
+    max-nodes: 300        # hard cap on nodes sent to the frontend (spec §8.4)
+
+logging:
+  level:
+    com.aegis: INFO
