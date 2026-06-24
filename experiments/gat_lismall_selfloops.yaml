@@ -1,0 +1,53 @@
+# AEGIS — GAT (primary model) on REAL IBM-AML LI-Small, GPU (a100q). Same dataset/split/features as
+# gcn_lismall.yaml so it REUSES the cached spectral features (graph_hash match -> no eigendecomp).
+# add_self_loops stays False (clean attention for explainability); the adversarial hardened variant
+# uses self-loops. Headline metric PR-AUC; recall@p≥0.9 is the operational target GAT should lift.
+
+config_version: 1
+device: auto                    # -> cuda on a100q
+model: gat
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  heads: 8
+  dropout: 0.5
+  attention_dropout: 0.3
+  variant: gat_v2
+  add_self_loops: true          # REQUIRED on the fragmented real graph (avg deg 0.14)
+
+dataset:
+  name: ibm_aml
+  variant: LI-Small
+  synthetic: false
+  trans_csv: data/raw/LI-Small_Trans.csv
+  nrows: null
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: 50           # MUST match gcn_lismall.yaml to reuse the spectral cache
+  max_out_per_in: 200
+  graph_cache_dir: data/processed
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 16
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: focal                   # focal for the imbalance; compare vs the GCN's weighted_ce
+  focal_gamma: 2.0
+  optimizer: adamw
+  lr: 0.005
+  weight_decay: 0.0005
+  max_epochs: 300
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 30 }
+  lr_schedule: cosine
+
+eval:
+  min_precision: 0.9
