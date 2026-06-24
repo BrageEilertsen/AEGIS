@@ -13,7 +13,7 @@ import { Metrics } from '../models/api.models';
         <div><div class="metric">{{ fmt(m.pr_auc) }}</div><div class="muted">PR-AUC</div></div>
         <div><div class="metric">{{ fmt(m.roc_auc) }}</div><div class="muted">ROC-AUC</div></div>
         <div><div class="metric">{{ fmt(m.recall_at_precision) }}</div>
-             <div class="muted">recall @ p≥{{ m.min_precision }}</div></div>
+             <div class="muted">recall &#64; p≥{{ m.min_precision }}</div></div>
         <div><div class="metric">{{ fmt(m.f1_illicit) }}</div><div class="muted">F1 (illicit)</div></div>
       </div>
       <p class="muted" style="font-size:12px">Accuracy is meaningless at ~{{ pct(m.n_pos, m.n_total) }} positives —
