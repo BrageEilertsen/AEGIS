@@ -18,9 +18,13 @@ CA="${AEGIS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
 export KAGGLEHUB_CACHE="${KAGGLEHUB_CACHE:-$PWD/data/raw/kagglehub}"
 
 [ -d env ] && source env/bin/activate || true
-python -c "import kagglehub" 2>/dev/null || pip install -q kagglehub
 
-python - <<'PY'
+# Pick a Python interpreter (macOS ships python3, not python; pip may be absent -> use `-m pip`).
+PYBIN="$(command -v python3 || command -v python)"
+[ -z "$PYBIN" ] && { echo "ERROR: need python3 on PATH"; exit 1; }
+"$PYBIN" -c "import kagglehub" 2>/dev/null || "$PYBIN" -m pip install -q kagglehub
+
+"$PYBIN" - <<'PY'
 import kagglehub, os, pathlib
 ds = "ealtman2019/ibm-transactions-for-anti-money-laundering-aml"
 raw = pathlib.Path("data/raw"); raw.mkdir(parents=True, exist_ok=True)
