@@ -1,0 +1,52 @@
+# AEGIS — GCN baseline on the REAL IBM-AML LI-Small (first real run; spec §7.3 step 1, Phase 2).
+# CPU (milanq) to conserve GPU hours (CLAUDE.md). subsample_legit keeps ALL 3,565 illicit + 50x
+# legit (~182k-node graph) so the per-component spectral build stays tractable on the fragmented
+# 7M-node graph. NOTE: subsampling is applied before the split, so the test illicit ratio (~2%) is
+# inflated vs the real ~0.05% — a follow-up run (split-then-subsample-train, or full graph on GPU)
+# will report on the realistic held-out ratio. Headline metric stays PR-AUC, never accuracy.
+
+config_version: 1
+device: cpu
+model: gcn
+arch:
+  hidden_channels: 64
+  num_layers: 2
+  dropout: 0.5
+
+dataset:
+  name: ibm_aml
+  variant: LI-Small
+  synthetic: false
+  trans_csv: data/raw/LI-Small_Trans.csv
+  nrows: null
+  graph: transaction_as_node
+  delta_t_hours: 24
+  subsample_legit: 50           # all illicit + 50x legit (~182k nodes); tractable build + real signal
+  max_out_per_in: 200
+  graph_cache_dir: data/processed
+
+features:
+  raw: true
+  local: true
+  spectral:
+    laplacian_pe_k: 16
+    centralities: [pagerank, eigenvector]
+
+split:
+  type: temporal
+  ratios: [0.6, 0.2, 0.2]
+
+train:
+  loss: weighted_ce
+  focal_gamma: 2.0
+  optimizer: adamw
+  lr: 0.01
+  weight_decay: 0.0005
+  max_epochs: 200
+  grad_clip_norm: 1.0
+  early_stopping: { monitor: val_pr_auc, patience: 20 }
+  lr_schedule: plateau
+  lr_schedule_params: { factor: 0.5, patience: 5, min_lr: 1.0e-6 }
+
+eval:
+  min_precision: 0.9

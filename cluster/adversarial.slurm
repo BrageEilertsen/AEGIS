@@ -7,7 +7,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-gpu=32G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/aegis_adv-%j.out
 #SBATCH --error=logs/aegis_adv-%j.err
