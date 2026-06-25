@@ -24,9 +24,14 @@ done
 echo "==> Resource group '$RG' in '$LOCATION'"
 az group create -n "$RG" -l "$LOCATION" -o none
 
-echo "==> Deploying (images: ghcr.io/$OWNER/aegis-*:$TAG)"
+# Optional: a Hugging Face token with the "Inference Providers" permission turns on the hosted-LLM
+# explanation summary. Unset -> the instant grounded template is used (no LLM).
+HF_TOKEN="${AEGIS_HF_TOKEN:-}"
+
+echo "==> Deploying (images: ghcr.io/$OWNER/aegis-*:$TAG; LLM summary: $([ -n "$HF_TOKEN" ] && echo hosted || echo template))"
 az deployment group create -g "$RG" -f infra/azure/main.bicep \
   -p pgAdminPassword="$PG_PASSWORD" \
+     hfToken="$HF_TOKEN" \
      inferenceImage="ghcr.io/$OWNER/aegis-inference:$TAG" \
      apiImage="ghcr.io/$OWNER/aegis-api:$TAG" \
      frontendImage="ghcr.io/$OWNER/aegis-frontend:$TAG" \

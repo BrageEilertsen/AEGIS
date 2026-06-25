@@ -26,6 +26,14 @@ param corsOrigins string = '*'
 @description('Minimum replicas per app (0 = scale-to-zero/cheapest; 1 = always-warm)')
 param minReplicas int = 1
 
+@secure()
+@description('Hugging Face token with the "Inference Providers" permission. Set -> the explanation summary is written by a hosted LLM; empty -> the instant grounded template is used.')
+param hfToken string = ''
+
+@description('Hosted instruct model id for the LLM summary (used only when hfToken is set)')
+param llmModel string = 'Qwen/Qwen2.5-7B-Instruct'
+
+var llmOn = !empty(hfToken)
 var pgName = toLower('${prefix}-pg-${uniqueString(resourceGroup().id)}')
 
 resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -87,6 +95,8 @@ resource inference 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: { external: false, targetPort: 8000, transport: 'auto' }
+      // The HF token (if any) is held as a secret, never as a plain env value.
+      secrets: llmOn ? [ { name: 'hf-token', value: hfToken } ] : []
     }
     template: {
       containers: [
@@ -94,10 +104,14 @@ resource inference 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'inference'
           image: inferenceImage
           resources: { cpu: json('1.0'), memory: '2.0Gi' }
-          // The grounded deterministic template summary is instant, free and reliable. The optional
-          // local LLM rephrasing (AEGIS_LLM_SUMMARY=1) needs fp32 + more memory to be reliable on
-          // CPU — bf16 is unstable across the Container Apps hardware fleet — so it's off by default.
-          env: [ { name: 'AEGIS_LLM_SUMMARY', value: '0' } ]
+          // The grounded deterministic template summary is instant, free and reliable. When an HF
+          // token is provided the summary is instead written by a hosted LLM (fast + reliable, no
+          // local CPU inference). Without a token the LLM stays off so the template is always used.
+          env: llmOn ? [
+            { name: 'AEGIS_LLM_SUMMARY', value: '1' }
+            { name: 'AEGIS_HF_TOKEN', secretRef: 'hf-token' }
+            { name: 'AEGIS_LLM_MODEL', value: llmModel }
+          ] : [ { name: 'AEGIS_LLM_SUMMARY', value: '0' } ]
         }
       ]
       scale: { minReplicas: minReplicas, maxReplicas: 1 }

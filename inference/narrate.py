@@ -4,18 +4,24 @@ Two layers, both GROUNDED in the structured evidence the GNN explainer already p
 predicted label, matched typology, top features, salient edges) — nothing is invented:
 
   * ``template_summary``  deterministic, instant, no model. Always available; rendered immediately.
-  * ``llm_summary``       a small local HF model (Qwen2.5-0.5B-Instruct) rephrases the SAME evidence
-                          into fluent prose. Slower (autoregressive on CPU), so the service runs it
-                          in the background and the UI upgrades the template text once it's ready.
+  * ``llm_summary``       a proper instruct model rephrases the SAME evidence into fluent prose. By
+                          default this calls a HOSTED model on Hugging Face's serverless inference
+                          API (fast + reliable); if no token is set it falls back to a small LOCAL
+                          transformers model (CPU, for offline/local dev). Either way the service
+                          runs it in the background and the UI upgrades the template text when ready.
 
 To keep the LLM faithful it is given a glossary of what each feature GROUP means and told to refer
 to features only via those descriptions — so it can't hallucinate that, say, a Laplacian positional
-encoding "indicates money laundering". Loaded in bfloat16 (~1GB, half of fp32) so it fits alongside
-the graph + torch runtime in a small container.
+encoding "indicates money laundering". If the LLM is disabled or errors, the grounded template is
+used, so the summary box always renders something correct.
 
 Config:
-  AEGIS_LLM_SUMMARY=1|0          enable/disable the LLM (default on; off -> template only)
-  AEGIS_LLM_MODEL=<hf repo id>   instruct model to use (default Qwen/Qwen2.5-0.5B-Instruct)
+  AEGIS_LLM_SUMMARY=1|0   enable/disable the LLM rephrasing (default on; off -> template only)
+  AEGIS_HF_TOKEN=hf_...   Hugging Face token with the "Inference Providers" permission -> use the
+                          hosted API. Unset -> use the local transformers fallback.
+  AEGIS_LLM_MODEL=<id>    instruct model id (default Qwen/Qwen2.5-7B-Instruct hosted; for the local
+                          fallback set a small model like Qwen/Qwen2.5-0.5B-Instruct)
+  AEGIS_HF_URL=<url>      OpenAI-compatible chat endpoint (default HF router)
 """
 from __future__ import annotations
 
@@ -23,7 +29,12 @@ import functools
 import os
 
 LLM_ENABLED = os.environ.get("AEGIS_LLM_SUMMARY", "1").lower() in ("1", "true", "yes")
-_MODEL = os.environ.get("AEGIS_LLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
+_HF_TOKEN = os.environ.get("AEGIS_HF_TOKEN", "").strip()
+_HF_URL = os.environ.get("AEGIS_HF_URL", "https://router.huggingface.co/v1/chat/completions").strip()
+_HOSTED = bool(_HF_TOKEN)
+# Hosted default is a capable 7B; local fallback default stays tiny so it can run on a CPU dev box.
+_MODEL = os.environ.get("AEGIS_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct" if _HOSTED
+                        else "Qwen/Qwen2.5-0.5B-Instruct")
 
 # Plain-English meaning of each feature GROUP (from feature_meta.group_dims). The LLM is restricted
 # to these descriptions so it never invents what an individual engineered feature "means".
@@ -41,21 +52,6 @@ _SYSTEM = (
     "named feature means, and do NOT invent amounts, account names, counterparties, or reasons that "
     "are not in the evidence. Be concrete and concise."
 )
-
-
-@functools.lru_cache(maxsize=1)
-def _model():
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(_MODEL)
-    # bfloat16 halves the weight footprint (~2GB fp32 -> ~1GB) so the model fits alongside the
-    # graph + torch runtime in a small (2Gi) container without OOM-killing the worker; bf16 keeps
-    # fp32's exponent range so greedy CPU decoding stays coherent. low_cpu_mem_usage avoids the
-    # transient init+load doubling during from_pretrained.
-    model = AutoModelForCausalLM.from_pretrained(
-        _MODEL, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True)
-    model.eval()
-    return tok, model
 
 
 def _feature_phrases(c: dict, k: int = 4) -> str:
@@ -85,8 +81,6 @@ def _evidence(c: dict) -> str:
     typ = c.get("matched_typology", {}) or {}
     pred = "ILLICIT" if c.get("predicted_label") == 1 else "licit"
     edges = c.get("top_edges", []) or []
-    # Phrase the score as a percentage band rather than a raw decimal — the small model otherwise
-    # parrots/garbles the figure (e.g. inventing "0.0000"); a qualitative phrase is harder to corrupt.
     pct = 100 * float(c.get("score", 0))
     level = "very high" if pct >= 90 else "high" if pct >= 70 else "moderate"
     return (
@@ -96,6 +90,43 @@ def _evidence(c: dict) -> str:
         f"Main contributing factors: {_feature_phrases(c)}\n"
         f"Connectivity: {'linked to ' + str(len(edges)) + ' influential transactions' if edges else 'isolated — no connected neighbourhood'}"
     )
+
+
+def _hf_chat(system: str, user: str) -> str:
+    """Call the hosted OpenAI-compatible chat endpoint on Hugging Face's inference router."""
+    import httpx
+    resp = httpx.post(
+        _HF_URL, timeout=30.0,
+        headers={"Authorization": f"Bearer {_HF_TOKEN}", "Content-Type": "application/json"},
+        json={"model": _MODEL,
+              "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+              "max_tokens": 180, "temperature": 0.2})
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"].strip()
+
+
+@functools.lru_cache(maxsize=1)
+def _local_model():
+    """Small local transformers model — fallback when no hosted token is configured (local dev)."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(_MODEL)
+    model = AutoModelForCausalLM.from_pretrained(_MODEL, torch_dtype=torch.float32, low_cpu_mem_usage=True)
+    model.eval()
+    return tok, model
+
+
+def _local_summary(c: dict) -> str | None:
+    import torch
+    tok, model = _local_model()
+    msgs = [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": _evidence(c)}]
+    prompt = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+    ids = tok(prompt, return_tensors="pt")
+    with torch.no_grad():
+        out = model.generate(**ids, max_new_tokens=96, do_sample=False,
+                             repetition_penalty=1.1, pad_token_id=tok.eos_token_id)
+    text = tok.decode(out[0][ids.input_ids.shape[1]:], skip_special_tokens=True).strip()
+    return _trim_to_sentence(text) or None
 
 
 def template_summary(c: dict) -> str:
@@ -118,31 +149,24 @@ def template_summary(c: dict) -> str:
 
 
 def llm_summary(c: dict) -> str | None:
-    """LLM rephrasing of the same grounded evidence; None if the model is disabled or unavailable."""
+    """LLM rephrasing of the same grounded evidence (hosted if a token is set, else local).
+    Returns None if disabled or the model is unavailable — callers fall back to the template."""
     if not LLM_ENABLED:
         return None
     try:
-        import torch
-        tok, model = _model()
-        msgs = [{"role": "system", "content": _SYSTEM},
-                {"role": "user", "content": _evidence(c)}]
-        prompt = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-        ids = tok(prompt, return_tensors="pt")
-        with torch.no_grad():
-            out = model.generate(**ids, max_new_tokens=96, do_sample=False,
-                                 repetition_penalty=1.1, pad_token_id=tok.eos_token_id)
-        text = tok.decode(out[0][ids.input_ids.shape[1]:], skip_special_tokens=True).strip()
-        return _trim_to_sentence(text) or None
+        if _HOSTED:
+            return _trim_to_sentence(_hf_chat(_SYSTEM, _evidence(c))) or None
+        return _local_summary(c)
     except Exception:
         return None
 
 
 def warm() -> None:
-    """Preload the LLM weights (idempotent via lru_cache) so the first real summary pays only the
-    generation cost, not the ~1GB load. Safe to call in a background thread at startup."""
-    if LLM_ENABLED:
+    """Preload the local fallback model so its first summary isn't slow. No-op for the hosted path
+    (nothing to load) and safe to call in a background thread at startup."""
+    if LLM_ENABLED and not _HOSTED:
         try:
-            _model()
+            _local_model()
         except Exception:
             pass
 
