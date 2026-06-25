@@ -66,7 +66,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static boolean isExpensive(String uri) {
         return uri.startsWith("/api/explain/") || uri.startsWith("/api/summary/")
-                || uri.startsWith("/api/graph/") || uri.startsWith("/api/adversarial");
+                || uri.startsWith("/api/investigate/") || uri.startsWith("/api/graph/")
+                || uri.startsWith("/api/adversarial");
     }
 
     private Bucket bucket(ConcurrentHashMap<String, Bucket> store, String key, int capacity, int seconds) {

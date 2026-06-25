@@ -92,6 +92,8 @@ export class DashboardComponent implements OnInit {
   select(f: Flag) {
     if (!this.dataset) return;
     this.selected = f; this.explanation = null;
-    this.api.explain(this.dataset.id, f.node_id).subscribe((e) => (this.explanation = e));
+    // investigate = explanation + AI summary fetched concurrently; if the summary isn't ready inline,
+    // the panel polls /api/summary (summary_pending stays true).
+    this.api.investigate(this.dataset.id, f.node_id).subscribe((e) => (this.explanation = e));
   }
 }

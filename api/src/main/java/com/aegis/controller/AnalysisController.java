@@ -19,8 +19,13 @@ import org.springframework.web.bind.annotation.*;
 public class AnalysisController {
 
     private final AnalysisService service;
+    private final com.aegis.service.InvestigationService investigation;
 
-    public AnalysisController(AnalysisService service) { this.service = service; }
+    public AnalysisController(AnalysisService service,
+                             com.aegis.service.InvestigationService investigation) {
+        this.service = service;
+        this.investigation = investigation;
+    }
 
     @GetMapping("/flags/{datasetId}")
     public List<FlagDto> flags(@PathVariable Long datasetId,
@@ -34,6 +39,15 @@ public class AnalysisController {
     public JsonNode explain(@PathVariable @Min(1) Long datasetId,
                             @PathVariable @Min(0) @Max(100_000_000) int nodeId) {
         return service.explain(datasetId, nodeId);
+    }
+
+    /** Open a flagged transaction: the explanation plus its AI summary if it's ready within a short
+     *  window — both fetched concurrently on virtual threads, so the analyst usually gets the whole
+     *  picture in one round-trip (falling back to /api/summary polling when the LLM is slower). */
+    @GetMapping("/investigate/{datasetId}/{nodeId}")
+    public JsonNode investigate(@PathVariable @Min(1) Long datasetId,
+                                @PathVariable @Min(0) @Max(100_000_000) int nodeId) {
+        return investigation.investigate(datasetId, nodeId);
     }
 
     /** Alias: the capped flagged subgraph for a node (spec §8.4) is the explanation's neighbourhood. */

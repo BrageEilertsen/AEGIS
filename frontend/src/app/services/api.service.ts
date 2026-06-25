@@ -25,6 +25,12 @@ export class ApiService {
     return this.http.get<Explanation>(`${this.base}/explain/${datasetId}/${nodeId}`);
   }
 
+  /** Explanation + (best-effort, inline) AI summary in one round-trip; the backend fans the two out
+   *  concurrently and returns the summary if it lands quickly, else summary_pending stays true. */
+  investigate(datasetId: number, nodeId: number): Observable<Explanation> {
+    return this.http.get<Explanation>(`${this.base}/investigate/${datasetId}/${nodeId}`);
+  }
+
   summary(datasetId: number, nodeId: number): Observable<SummaryStatus> {
     return this.http.get<SummaryStatus>(`${this.base}/summary/${datasetId}/${nodeId}`);
   }

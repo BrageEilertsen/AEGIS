@@ -1,6 +1,12 @@
 spring:
   application:
     name: aegis-api
+  threads:
+    virtual:
+      enabled: true        # Java 21: serve requests on virtual threads. This BFF mostly *waits* on a
+                           # slow Python model, so blocking on a virtual thread is near-free and the
+                           # platform-thread pool stops being the bottleneck (Resilience4j bulkhead
+                           # still bounds real concurrency to the model).
   datasource:
     url: ${AEGIS_DB_URL:jdbc:postgresql://localhost:5432/aegis}
     username: ${AEGIS_DB_USER:aegis}
