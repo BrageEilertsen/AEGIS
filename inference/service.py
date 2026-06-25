@@ -30,13 +30,21 @@ class ModelService:
             load_checkpoint_and_model(checkpoint)
         self.model_type = self.cfg.get("model", "gcn")
         self.device = resolve_device(self.cfg.get("device", "auto"))
-        # Rebuild the exact graph + features used at train time; re-apply saved standardization.
-        data, df = build_graph(self.cfg, self.seed)
-        data, _ = assemble_features(data, df, feature_config(self.cfg), feature_cache,
-                                    standardization=self.feature_meta["standardization"])
+        # Fast path: load a pre-built, fully-featurized graph (tiny + instant, ~50MB RAM) instead
+        # of rebuilding from the 6.9M-row CSV (~3.5GB peak) — lets the service run on small/low-RAM
+        # hosts. The artifact is the exact `data` object built below, so results are identical.
+        # Falls back to rebuilding from the raw CSV when AEGIS_PREBUILT_GRAPH is unset/missing.
+        prebuilt = os.environ.get("AEGIS_PREBUILT_GRAPH", "")
+        if prebuilt and Path(prebuilt).exists():
+            data = torch.load(prebuilt, map_location="cpu", weights_only=False)
+            self.df = None
+        else:
+            data, df = build_graph(self.cfg, self.seed)
+            data, _ = assemble_features(data, df, feature_config(self.cfg), feature_cache,
+                                        standardization=self.feature_meta["standardization"])
+            self.df = df
         self.model.to(self.device)
         self.data = data.to(self.device)
-        self.df = df
         with torch.no_grad():
             self._scores = illicit_scores(self.model(self.data))   # [N] illicit prob
         self.min_precision = float(self.cfg.get("eval", {}).get("min_precision", 0.9))

@@ -22,6 +22,9 @@ services:
       AEGIS_CHECKPOINT: ${AEGIS_CHECKPOINT:-/data/outputs/gcn_lismall/best.pt}
       AEGIS_FEATURE_CACHE: /data/cache/features
       AEGIS_ADVERSARIAL_ARTIFACT: ${AEGIS_ADVERSARIAL_ARTIFACT:-/data/seed/demo_adversarial_artifact.json}
+      # Pre-built featurized graph: instant, ~700MB RAM (skips the 6.9M-row CSV load, ~3.5GB).
+      # If the file is absent the service falls back to rebuilding from the raw CSV.
+      AEGIS_PREBUILT_GRAPH: ${AEGIS_PREBUILT_GRAPH:-/data/outputs/gcn_lismall/prebuilt_graph.pt}
     volumes:
       - ../outputs:/data/outputs:ro
       - ../cache:/data/cache
