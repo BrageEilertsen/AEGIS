@@ -6,12 +6,13 @@ import { MetricsPanelComponent } from './metrics-panel.component';
 import { GraphCanvasComponent } from './graph-canvas.component';
 import { ExplanationPanelComponent } from './explanation-panel.component';
 import { AdversarialDemoComponent } from './adversarial-demo.component';
+import { LiveMonitorComponent } from './live-monitor.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, MetricsPanelComponent, GraphCanvasComponent,
-            ExplanationPanelComponent, AdversarialDemoComponent],
+            ExplanationPanelComponent, AdversarialDemoComponent, LiveMonitorComponent],
   template: `
     <div *ngIf="dataset as d" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
       <span class="pill">{{ d.name }}</span>
@@ -21,6 +22,8 @@ import { AdversarialDemoComponent } from './adversarial-demo.component';
     </div>
 
     <app-metrics-panel [metrics]="metrics" style="display:block;margin-bottom:18px"></app-metrics-panel>
+
+    <app-live-monitor style="display:block;margin-bottom:18px"></app-live-monitor>
 
     <div class="grid-main">
       <div class="card">

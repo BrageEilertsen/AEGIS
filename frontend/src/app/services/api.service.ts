@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { AdversarialArtifact, Dataset, Explanation, Flag, Metrics, SummaryStatus } from '../models/api.models';
+import { AdversarialArtifact, Dataset, Explanation, Flag, Metrics, StreamStats, SummaryStatus } from '../models/api.models';
 
 /** Calls the Spring Boot BFF (which orchestrates the FastAPI inference service). */
 @Injectable({ providedIn: 'root' })
@@ -37,5 +37,12 @@ export class ApiService {
 
   adversarial(): Observable<AdversarialArtifact> {
     return this.http.post<AdversarialArtifact>(`${this.base}/adversarial/run`, {});
+  }
+
+  /** SSE endpoint URL for the live transaction stream (consumed via EventSource). */
+  streamUrl(): string { return `${this.base}/stream`; }
+
+  streamStats(): Observable<StreamStats> {
+    return this.http.get<StreamStats>(`${this.base}/stream/stats`);
   }
 }
