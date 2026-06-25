@@ -50,4 +50,6 @@ jobs:
           file: ${{ matrix.file }}
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ env.OWNER }}/aegis-${{ matrix.name }}:latest
+          tags: |
+            ghcr.io/${{ env.OWNER }}/aegis-${{ matrix.name }}:latest
+            ghcr.io/${{ env.OWNER }}/aegis-${{ matrix.name }}:${{ github.sha }}
