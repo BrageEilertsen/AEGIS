@@ -29,10 +29,14 @@ public class CaseService {
     private final AlertRepository alerts;
     private final CaseActivityRepository activities;
     private final CaseWorkflow workflow;
+    private final AuditService audit;
+    private final com.fasterxml.jackson.databind.ObjectMapper json;
 
     public CaseService(CaseRepository cases, AlertRepository alerts,
-                       CaseActivityRepository activities, CaseWorkflow workflow) {
+                       CaseActivityRepository activities, CaseWorkflow workflow,
+                       AuditService audit, com.fasterxml.jackson.databind.ObjectMapper json) {
         this.cases = cases; this.alerts = alerts; this.activities = activities; this.workflow = workflow;
+        this.audit = audit; this.json = json;
     }
 
     // ---- alerts ----
@@ -59,6 +63,8 @@ public class CaseService {
             }
         }
         log(c.getId(), actor, "CREATED", null, CaseState.NEW, title);
+        audit.append(actor, "CASE_CREATED", "CASE", c.getId(),
+                payload("title", title, "priority", c.getPriority(), "alertIds", alertIds));
         return c;
     }
 
@@ -71,6 +77,8 @@ public class CaseService {
         c.touch();
         cases.save(c);
         log(caseId, actor, "ASSIGN", from, c.getState(), "assigned to " + assignee);
+        audit.append(actor, "CASE_ASSIGNED", "CASE", caseId,
+                payload("assignee", assignee, "from", from, "to", c.getState()));
         return c;
     }
 
@@ -91,7 +99,20 @@ public class CaseService {
         }
         cases.save(c);
         log(caseId, actor, event.name(), from, to, note);
+        audit.append(actor, "CASE_" + event.name(), "CASE", caseId,
+                payload("from", from, "to", to, "note", note, "disposition", c.getDisposition()));
         return c;
+    }
+
+    /** Build a small JSON payload for the audit snapshot (keys/values; values may be null). */
+    private String payload(Object... kv) {
+        var map = new java.util.LinkedHashMap<String, Object>();
+        for (int i = 0; i + 1 < kv.length; i += 2) map.put(String.valueOf(kv[i]), kv[i + 1]);
+        try {
+            return json.writeValueAsString(map);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return map.toString();
+        }
     }
 
     private void close(CaseFile c, Disposition d, String rationale, String actor) {

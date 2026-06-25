@@ -17,6 +17,9 @@ spring:
     open-in-view: false
     properties:
       hibernate.format_sql: true
+      # Store Instants in UTC so they round-trip exactly (the audit hash chain depends on a stable
+      # timestamp representation across persist/reload).
+      hibernate.jdbc.time_zone: UTC
 
 server:
   port: 8080
