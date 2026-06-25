@@ -1,55 +1,54 @@
 # Deploying AEGIS to Azure
 
-A one-command deploy of the full stack to **Azure Container Apps** + **Azure Database for
-PostgreSQL Flexible Server**, sized for the **Azure free account** ($200 credit / free tiers,
-spending protection). Images build **server-side** in your registry — no local Docker needed.
+A deploy of the full stack to **Azure Container Apps** + **Azure Database for PostgreSQL Flexible
+Server**, sized for the **Azure free account** ($200 credit / free tiers, spending protection).
 
-## Prerequisites
+Images are built by **GitHub Actions** and published to **GHCR** (GitHub's container registry), then
+Azure pulls them. This avoids ACR Tasks (blocked on free subscriptions) and needs **no local Docker**.
 
-1. An **Azure subscription** (the free account works: https://azure.microsoft.com/free).
-2. The **Azure CLI**: `brew install azure-cli` (macOS) or https://aka.ms/InstallAzureCLI.
-3. Log in and select your subscription:
-   ```bash
-   az login
-   az account set --subscription "<your-subscription-id>"
-   ```
-   (The deploy script registers the required resource providers for you.)
+## How it works
+
+```
+push to GitHub ─▶ GitHub Actions builds 3 images ─▶ GHCR (public) ─▶ Azure Container Apps
+```
+
+## One-time setup
+
+1. **Azure account** — the free one works: https://azure.microsoft.com/free
+2. **Azure CLI** — `brew install azure-cli` (macOS) or https://aka.ms/InstallAzureCLI
+3. **Build the images** — they build automatically on every push (workflow:
+   `.github/workflows/build-images.yml`). Check the repo's **Actions** tab; the `build-images` run
+   should finish green (~10 min). To trigger manually: Actions → build-images → *Run workflow*.
+4. **Make the 3 GHCR packages public** (so Azure can pull them without credentials) — one time:
+   GitHub → your profile → **Packages** → for each of `aegis-inference`, `aegis-api`,
+   `aegis-frontend`: *Package settings* → *Change visibility* → **Public**.
 
 ## Deploy
 
 ```bash
-./infra/azure/deploy.sh
+az login
+./infra/azure/deploy.sh        # prints the public frontend URL at the end (~3-5 min)
 ```
 
-That will: create a resource group + container registry, build the three images in the registry,
-provision Postgres + the Container Apps environment, deploy the three apps, and print the **public
-frontend URL**. First load wakes the apps and warms the model — give it ~a minute.
+Open the printed **Frontend URL**. First hit wakes the apps and warms the model — give it ~a minute.
 
-Customise via env vars, e.g.:
+Customise via env vars:
 ```bash
-AEGIS_LOCATION=westeurope AEGIS_RG=aegis-demo ./infra/azure/deploy.sh
+AEGIS_LOCATION=westeurope ./infra/azure/deploy.sh     # region
+AEGIS_GHCR_OWNER=youruser ./infra/azure/deploy.sh     # if your GH owner differs
 ```
-
-| Variable | Default | Notes |
-|---|---|---|
-| `AEGIS_LOCATION` | `norwayeast` | Any region with Container Apps + PG Flexible Server. |
-| `AEGIS_RG` | `aegis-rg` | Resource group name. |
-| `AEGIS_PG_PASSWORD` | auto-generated | Printed at the end — save it. |
-| `AEGIS_ACR` | `aegisacr<digits>` | Globally-unique registry name. |
 
 ## What it creates
 
 | Resource | SKU | Cost posture |
 |---|---|---|
-| Container Apps (inference, api, frontend) | Consumption | Free monthly grant; set `minReplicas: 0` in `main.bicep` for scale-to-zero. |
-| PostgreSQL Flexible Server | Burstable **B1ms**, 32 GB | Free for 12 months on a new account; else ~$12–15/mo. |
-| Container Registry | **Basic** | ~$5/mo — the one item with no free tier (covered by the $200 credit). |
+| Container Apps (inference, api, frontend) | Consumption | Free monthly grant; `-p minReplicas=0` for scale-to-zero. |
+| PostgreSQL Flexible Server | Burstable **B1ms**, 32 GB | Free 12 months on a new account; else ~$12–15/mo. |
 | Log Analytics | Pay-as-you-go | First 5 GB/month free. |
+| Registry | **GHCR** (GitHub) | **Free** for public images. |
 
-On the **free account** everything above runs on the $200 / 30-day credit with **spending
-protection** (your card isn't charged). To run cheaply *beyond* the credit: Postgres B1ms stays
-free for 12 months, Container Apps scale-to-zero ≈ $0 when idle, and you can drop the registry by
-hosting images on GHCR instead. Or just tear down between demos.
+On the free account this runs on the $200 / 30-day credit with **spending protection**. Beyond the
+credit: Postgres B1ms is free for 12 months, Container Apps scale-to-zero ≈ $0 idle, GHCR is free.
 
 ## Tear down (stop all billing)
 
@@ -60,10 +59,10 @@ hosting images on GHCR instead. Or just tear down between demos.
 ## Notes
 
 - **Architecture:** `frontend` (public) → `api` (public, CORS-open read-only demo) → `inference`
-  (internal) + Postgres. The frontend learns the API URL at runtime (`AEGIS_API_URL` → `env.js`);
-  the inference image bakes the model + checkpoint + graph, so it needs no mounts in the cloud.
-- **Cost control:** for a "wake on demand, ~$0 idle" demo, set `minReplicas: 0` (param in
-  `main.bicep` / `-p minReplicas=0`). Trade-off: a cold start of ~20–40 s on the first hit.
+  (internal) + Postgres. The frontend gets the API URL at runtime (`AEGIS_API_URL` → `env.js`); the
+  inference image bakes the model + checkpoint + graph, so it needs no mounts in the cloud.
+- **Cheapest "wake on demand" demo:** `az deployment group create ... -p minReplicas=0` (≈ $0 idle;
+  ~20–40 s cold start on first hit).
 - This IaC is authored to match the local stack; on a first deploy, watch the `az deployment`
   output for any region/quota/API-version messages and adjust `AEGIS_LOCATION` if a SKU isn't
   available in your region.

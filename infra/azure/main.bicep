@@ -1,6 +1,6 @@
 // AEGIS on Azure — free-tier-friendly: Container Apps (consumption) + PostgreSQL Flexible Server
-// (Burstable B1ms) + Log Analytics. The container registry is created by deploy.sh (which builds
-// the images) and referenced here. Deploy via infra/azure/deploy.sh.
+// (Burstable B1ms) + Log Analytics. Images are pulled from public GHCR (built by GitHub Actions),
+// so there's no ACR and no registry credentials. Deploy via infra/azure/deploy.sh.
 
 @description('Azure region')
 param location string = resourceGroup().location
@@ -8,11 +8,10 @@ param location string = resourceGroup().location
 @description('Short name prefix for all resources')
 param prefix string = 'aegis'
 
-@description('Name of the (already-created) Azure Container Registry holding the images')
-param acrName string
-
-@description('Image tag to deploy')
-param imageTag string = 'latest'
+@description('Public image refs (built + pushed to GHCR by .github/workflows/build-images.yml)')
+param inferenceImage string = 'ghcr.io/brageeilertsen/aegis-inference:latest'
+param apiImage string = 'ghcr.io/brageeilertsen/aegis-api:latest'
+param frontendImage string = 'ghcr.io/brageeilertsen/aegis-frontend:latest'
 
 @description('PostgreSQL admin username')
 param pgAdminLogin string = 'aegis'
@@ -29,7 +28,6 @@ param minReplicas int = 1
 
 var pgName = toLower('${prefix}-pg-${uniqueString(resourceGroup().id)}')
 
-// --- Log Analytics (required by the Container Apps environment) ---
 resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: '${prefix}-logs'
   location: location
@@ -39,7 +37,6 @@ resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   }
 }
 
-// --- Container Apps environment ---
 resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: '${prefix}-env'
   location: location
@@ -52,11 +49,6 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
       }
     }
   }
-}
-
-// --- Existing container registry (created by deploy.sh before this deployment) ---
-resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: acrName
 }
 
 // --- PostgreSQL Flexible Server (Burstable B1ms — free-tier eligible / credit-covered) ---
@@ -80,20 +72,11 @@ resource pgdb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-06-01-pr
   properties: { charset: 'UTF8', collation: 'en_US.utf8' }
 }
 
-// Allow other Azure services (the Container Apps) to reach the database.
 resource pgfw 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-06-01-preview' = {
   parent: pg
   name: 'AllowAzureServices'
   properties: { startIpAddress: '0.0.0.0', endIpAddress: '0.0.0.0' }
 }
-
-var acrCreds = acr.listCredentials()
-var registryConfig = {
-  server: acr.properties.loginServer
-  username: acrCreds.username
-  passwordSecretRef: 'acr-pwd'
-}
-var acrSecret = { name: 'acr-pwd', value: acrCreds.passwords[0].value }
 
 // --- Inference service (internal: only the API reaches it) ---
 resource inference 'Microsoft.App/containerApps@2024-03-01' = {
@@ -104,14 +87,12 @@ resource inference 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: { external: false, targetPort: 8000, transport: 'auto' }
-      registries: [ registryConfig ]
-      secrets: [ acrSecret ]
     }
     template: {
       containers: [
         {
           name: 'inference'
-          image: '${acr.properties.loginServer}/aegis-inference:${imageTag}'
+          image: inferenceImage
           resources: { cpu: json('1.0'), memory: '2.0Gi' }
           env: [ { name: 'AEGIS_LLM_SUMMARY', value: '1' } ]
         }
@@ -130,14 +111,13 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: { external: true, targetPort: 8080, transport: 'auto' }
-      registries: [ registryConfig ]
-      secrets: [ acrSecret, { name: 'db-pwd', value: pgAdminPassword } ]
+      secrets: [ { name: 'db-pwd', value: pgAdminPassword } ]
     }
     template: {
       containers: [
         {
           name: 'api'
-          image: '${acr.properties.loginServer}/aegis-api:${imageTag}'
+          image: apiImage
           resources: { cpu: json('0.5'), memory: '1.0Gi' }
           env: [
             { name: 'AEGIS_DB_URL', value: 'jdbc:postgresql://${pg.properties.fullyQualifiedDomainName}:5432/aegis?sslmode=require' }
@@ -162,14 +142,12 @@ resource frontend 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: { external: true, targetPort: 80, transport: 'auto' }
-      registries: [ registryConfig ]
-      secrets: [ acrSecret ]
     }
     template: {
       containers: [
         {
           name: 'frontend'
-          image: '${acr.properties.loginServer}/aegis-frontend:${imageTag}'
+          image: frontendImage
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [ { name: 'AEGIS_API_URL', value: 'https://${api.properties.configuration.ingress.fqdn}/api' } ]
         }
