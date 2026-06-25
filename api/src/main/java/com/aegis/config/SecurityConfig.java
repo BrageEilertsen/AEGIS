@@ -48,7 +48,7 @@ public class SecurityConfig {
     /** Read-only endpoints that stay public even when auth is enabled. */
     private static final String[] PUBLIC_GET = {
             "/api/datasets", "/api/flags/**", "/api/explain/**", "/api/summary/**",
-            "/api/investigate/**", "/api/graph/**", "/api/metrics/**"
+            "/api/investigate/**", "/api/graph/**", "/api/metrics/**", "/api/stream", "/api/stream/**"
     };
 
     /** Built only when an issuer is configured; presence of this bean == "auth enabled". */

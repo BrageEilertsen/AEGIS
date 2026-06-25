@@ -20,6 +20,18 @@ spring:
       # Store Instants in UTC so they round-trip exactly (the audit hash chain depends on a stable
       # timestamp representation across persist/reload).
       hibernate.jdbc.time_zone: UTC
+  # Kafka consumer settings — only used when a broker is configured (KafkaFeed is gated on it).
+  kafka:
+    bootstrap-servers: ${AEGIS_KAFKA_BROKERS:localhost:9092}   # only contacted when a feed listens
+    listener:
+      auto-startup: ${AEGIS_KAFKA_AUTOSTART:true}
+    consumer:
+      group-id: ${AEGIS_KAFKA_GROUP:aegis-stream}
+      auto-offset-reset: latest
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.aegis.stream
+        spring.json.value.default.type: com.aegis.stream.TransactionEvent
 
 server:
   port: 8080
@@ -30,6 +42,15 @@ aegis:
     timeout-seconds: 600
   graph:
     max-nodes: 300        # hard cap on nodes sent to the frontend (spec §8.4)
+  stream:
+    enabled: ${AEGIS_STREAM_ENABLED:true}
+    window-seconds: ${AEGIS_STREAM_WINDOW:90}
+    emit-interval-ms: ${AEGIS_STREAM_INTERVAL_MS:700}
+    alert-threshold: ${AEGIS_STREAM_THRESHOLD:0.75}
+    accounts: ${AEGIS_STREAM_ACCOUNTS:60}
+  kafka:
+    brokers: ${AEGIS_KAFKA_BROKERS:}      # empty -> simulated feed; set -> consume real Kafka
+    topic: ${AEGIS_KAFKA_TOPIC:transactions}
   ratelimit:
     enabled: ${AEGIS_RATELIMIT_ENABLED:true}
     capacity: ${AEGIS_RATELIMIT_CAPACITY:60}            # general burst per client...

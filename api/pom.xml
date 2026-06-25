@@ -75,6 +75,12 @@
       <artifactId>spring-statemachine-core</artifactId>
       <version>4.0.0</version>
     </dependency>
+    <!-- Spring for Apache Kafka: real-time transaction stream consumer. Only wired when
+         AEGIS_KAFKA_BROKERS is set; the demo runs off a built-in simulated feed otherwise. -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
     <!-- Actuator: health/readiness + metrics surface (also used by the resilience4j health group). -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
