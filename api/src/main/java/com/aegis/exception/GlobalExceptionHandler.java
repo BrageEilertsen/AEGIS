@@ -19,8 +19,9 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(NotFoundException.class)
-    public ProblemDetail notFound(NotFoundException e) {
+    @ExceptionHandler({NotFoundException.class,
+                       org.springframework.web.servlet.resource.NoResourceFoundException.class})
+    public ProblemDetail notFound(Exception e) {
         return problem(HttpStatus.NOT_FOUND, "Not Found", e.getMessage());
     }
 
