@@ -94,7 +94,10 @@ resource inference 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'inference'
           image: inferenceImage
           resources: { cpu: json('1.0'), memory: '2.0Gi' }
-          env: [ { name: 'AEGIS_LLM_SUMMARY', value: '1' } ]
+          // The grounded deterministic template summary is instant, free and reliable. The optional
+          // local LLM rephrasing (AEGIS_LLM_SUMMARY=1) needs fp32 + more memory to be reliable on
+          // CPU — bf16 is unstable across the Container Apps hardware fleet — so it's off by default.
+          env: [ { name: 'AEGIS_LLM_SUMMARY', value: '0' } ]
         }
       ]
       scale: { minReplicas: minReplicas, maxReplicas: 1 }
