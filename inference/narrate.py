@@ -74,16 +74,27 @@ def _feature_phrases(c: dict, k: int = 4) -> str:
     return "; ".join(out) or "n/a"
 
 
+def _trim_to_sentence(text: str) -> str:
+    """Cut a generation back to its last complete sentence so a token limit never leaves a dangling
+    fragment (e.g. '...indicating'). Falls back to the raw text if no sentence end is found."""
+    end = max(text.rfind(". "), text.rfind("! "), text.rfind("? "), text.rfind("."))
+    return text[: end + 1].strip() if end > 40 else text.strip()
+
+
 def _evidence(c: dict) -> str:
     typ = c.get("matched_typology", {}) or {}
     pred = "ILLICIT" if c.get("predicted_label") == 1 else "licit"
     edges = c.get("top_edges", []) or []
+    # Phrase the score as a percentage band rather than a raw decimal — the small model otherwise
+    # parrots/garbles the figure (e.g. inventing "0.0000"); a qualitative phrase is harder to corrupt.
+    pct = 100 * float(c.get("score", 0))
+    level = "very high" if pct >= 90 else "high" if pct >= 70 else "moderate"
     return (
         f"Flagged transaction #{c.get('node_id')}\n"
-        f"Model score: {float(c.get('score', 0)):.4f} illicit probability (predicted {pred})\n"
-        f"Matched laundering typology: {typ.get('label', 'n/a')} (confidence {typ.get('confidence', '?')})\n"
+        f"Model's confidence it is illicit: {level} (about {pct:.0f}%); the model predicts it is {pred}.\n"
+        f"Matched laundering typology: {typ.get('label', 'n/a')}\n"
         f"Main contributing factors: {_feature_phrases(c)}\n"
-        f"Connectivity: {'has ' + str(len(edges)) + ' influential linked transactions' if edges else 'isolated — no connected neighbourhood'}"
+        f"Connectivity: {'linked to ' + str(len(edges)) + ' influential transactions' if edges else 'isolated — no connected neighbourhood'}"
     )
 
 
@@ -118,12 +129,22 @@ def llm_summary(c: dict) -> str | None:
         prompt = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
         ids = tok(prompt, return_tensors="pt")
         with torch.no_grad():
-            out = model.generate(**ids, max_new_tokens=90, do_sample=False,
+            out = model.generate(**ids, max_new_tokens=96, do_sample=False,
                                  repetition_penalty=1.1, pad_token_id=tok.eos_token_id)
         text = tok.decode(out[0][ids.input_ids.shape[1]:], skip_special_tokens=True).strip()
-        return text or None
+        return _trim_to_sentence(text) or None
     except Exception:
         return None
+
+
+def warm() -> None:
+    """Preload the LLM weights (idempotent via lru_cache) so the first real summary pays only the
+    generation cost, not the ~1GB load. Safe to call in a background thread at startup."""
+    if LLM_ENABLED:
+        try:
+            _model()
+        except Exception:
+            pass
 
 
 def narrate(contract: dict) -> str:

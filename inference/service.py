@@ -21,7 +21,7 @@ from ml.explain import explain_node, load_checkpoint_and_model
 from ml.features.assemble import assemble_features
 from ml.train import build_graph, feature_config, resolve_device
 
-from inference.narrate import LLM_ENABLED, llm_summary, template_summary
+from inference.narrate import LLM_ENABLED, llm_summary, template_summary, warm
 
 
 class ModelService:
@@ -63,6 +63,8 @@ class ModelService:
         self._summary_inflight: set[int] = set()
         self._summary_lock = threading.Lock()
         self._summary_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm-summary")
+        if LLM_ENABLED:
+            self._summary_pool.submit(warm)   # preload weights so the first click isn't slow
 
     # ---- info ----
     def info(self) -> dict:

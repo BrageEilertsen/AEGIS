@@ -76,7 +76,8 @@ export class ExplanationPanelComponent implements OnChanges, OnDestroy {
     this.summaryText = ex?.summary ?? '';
     if (!ex || this.datasetId == null || !ex.summary_pending) return;
     // The instant template summary already shows; poll the BFF until the LLM upgrade is ready
-    // (every 2.5s, give up after ~30s and keep the template).
+    // (every 2.5s, give up after ~90s — the model generates on a 1-vCPU container so allow ample
+    // headroom — and keep the grounded template if it never arrives).
     this.polling = true;
     const node = ex.node_id;
     this.sub = timer(2500, 2500).subscribe((i) => {
@@ -86,8 +87,8 @@ export class ExplanationPanelComponent implements OnChanges, OnDestroy {
           if (s.ready) {
             if (s.summary) { this.summaryText = s.summary; this.aiReady = true; }
             this.stopPolling();
-          } else if (i >= 11) {
-            this.stopPolling();   // ~30s elapsed — keep the grounded template
+          } else if (i >= 35) {
+            this.stopPolling();   // ~90s elapsed — keep the grounded template
           }
         },
         error: () => this.stopPolling(),
