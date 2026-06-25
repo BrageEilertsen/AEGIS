@@ -21,6 +21,48 @@ aegis:
     timeout-seconds: 600
   graph:
     max-nodes: 300        # hard cap on nodes sent to the frontend (spec §8.4)
+  ratelimit:
+    enabled: ${AEGIS_RATELIMIT_ENABLED:true}
+    capacity: ${AEGIS_RATELIMIT_CAPACITY:60}            # general burst per client...
+    refill-seconds: ${AEGIS_RATELIMIT_PERIOD:60}        # ...refilled fully every N seconds (60/min).
+    expensive-capacity: ${AEGIS_RATELIMIT_EXPENSIVE_CAPACITY:10}      # stricter bucket for the costly
+    expensive-refill-seconds: ${AEGIS_RATELIMIT_EXPENSIVE_PERIOD:60}  # explain/summary (CPU + hosted LLM).
+
+# Resilience4j: the inference service is a slow external dependency; isolate it so a slow/down model
+# degrades gracefully (fast 502 + fallback) instead of exhausting threads and cascading.
+resilience4j:
+  circuitbreaker:
+    instances:
+      inference:
+        sliding-window-size: 20
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+  retry:
+    instances:
+      inference:
+        max-attempts: 3
+        wait-duration: 400ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+  bulkhead:
+    instances:
+      inference:
+        max-concurrent-calls: 16        # cap simultaneous in-flight calls to the model
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:

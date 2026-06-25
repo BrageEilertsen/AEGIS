@@ -20,6 +20,8 @@
 
 <sub>Running on Azure Container Apps. Click a flagged transaction to see its responsible neighbourhood, faithful feature/edge attribution, and a grounded plain-English AI summary.</sub>
 
+<sub>The demo runs **real model inference + explanation on demand** over a **prebuilt graph snapshot** of the IBM-AML LI-Small dataset — it is not (yet) streaming live transactions. Public endpoints are rate-limited.</sub>
+
 </div>
 
 ![AEGIS dashboard](docs/screenshots/dashboard.png)
