@@ -34,7 +34,9 @@ for fname in ["LI-Small_Trans.csv", "LI-Small_Patterns.txt"]:
     link = raw / fname
     if link.exists() or link.is_symlink():
         link.unlink()
-    link.symlink_to(p)
+    # RELATIVE symlink (target lives under data/raw/kagglehub/...) so it also resolves inside a
+    # Docker bind-mount of data/; an absolute symlink would break in the container.
+    link.symlink_to(os.path.relpath(p, start=raw))
     print(f"OK {fname}: {os.path.getsize(p)/1e6:.1f} MB  ->  data/raw/{fname}")
 print("done — raw data stays under data/raw/ (gitignored), never committed.")
 PY
