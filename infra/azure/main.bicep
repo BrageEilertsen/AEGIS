@@ -123,7 +123,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AEGIS_DB_URL', value: 'jdbc:postgresql://${pg.properties.fullyQualifiedDomainName}:5432/aegis?sslmode=require' }
             { name: 'AEGIS_DB_USER', value: pgAdminLogin }
             { name: 'AEGIS_DB_PASSWORD', secretRef: 'db-pwd' }
-            { name: 'AEGIS_INFERENCE_URL', value: 'http://${inference.properties.configuration.ingress.fqdn}' }
+            { name: 'AEGIS_INFERENCE_URL', value: 'https://${inference.properties.configuration.ingress.fqdn}' }
             { name: 'AEGIS_CORS_ORIGINS', value: corsOrigins }
           ]
         }
