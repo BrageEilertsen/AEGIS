@@ -30,10 +30,20 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_GATEWAY, "Inference Unavailable", e.getMessage());
     }
 
+    @ExceptionHandler(IllegalCaseTransitionException.class)
+    public ProblemDetail illegalTransition(IllegalCaseTransitionException e) {
+        return problem(HttpStatus.CONFLICT, "Illegal Case Transition", e.getMessage());
+    }
+
     @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class,
                        MethodArgumentTypeMismatchException.class})
     public ProblemDetail invalid(Exception e) {
         return problem(HttpStatus.BAD_REQUEST, "Validation Failed", e.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ProblemDetail forbidden(org.springframework.security.access.AccessDeniedException e) {
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", "You don't have permission to do that.");
     }
 
     @ExceptionHandler(Exception.class)

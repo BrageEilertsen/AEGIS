@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "AEGIS_OIDC_ISSUER="   // public/demo mode (auth disabled)
 })
-class MeEndpointIT {
+class MeEndpointTest {
 
     @MockBean DataLoader dataLoader;   // skip the startup inference-seeding runner
 
@@ -35,7 +35,8 @@ class MeEndpointIT {
 
     @Test
     void unmappedRouteIsNotFound() {
-        ResponseEntity<String> r = rest.getForEntity("/api/cases", String.class);
+        // A genuinely unmapped path -> 404 (the catch-all must not turn NoResourceFound into 500).
+        ResponseEntity<String> r = rest.getForEntity("/api/does-not-exist-xyz", String.class);
         assertThat(r.getStatusCode().value()).isEqualTo(404);
     }
 }

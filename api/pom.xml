@@ -68,6 +68,13 @@
       <artifactId>bucket4j_jdk17-core</artifactId>
       <version>8.14.0</version>
     </dependency>
+    <!-- Spring State Machine: enforces the legal AML case lifecycle transitions
+         (alert -> case -> investigation -> review -> disposition). -->
+    <dependency>
+      <groupId>org.springframework.statemachine</groupId>
+      <artifactId>spring-statemachine-core</artifactId>
+      <version>4.0.0</version>
+    </dependency>
     <!-- Actuator: health/readiness + metrics surface (also used by the resilience4j health group). -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
