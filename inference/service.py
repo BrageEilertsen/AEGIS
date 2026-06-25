@@ -8,6 +8,8 @@ the Spring Boot BFF orchestrates and caps graphs; this just serves model inferen
 from __future__ import annotations
 
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from ml.explain import explain_node, load_checkpoint_and_model
 from ml.features.assemble import assemble_features
 from ml.train import build_graph, feature_config, resolve_device
 
-from inference.narrate import narrate
+from inference.narrate import LLM_ENABLED, llm_summary, template_summary
 
 
 class ModelService:
@@ -53,6 +55,14 @@ class ModelService:
         with torch.no_grad():
             self._scores = illicit_scores(self.model(self.data))   # [N] illicit prob
         self.min_precision = float(self.cfg.get("eval", {}).get("min_precision", 0.9))
+        # Async LLM-summary machinery: /explain returns instantly with the deterministic template
+        # summary and the fluent LLM rephrasing is generated in the background (slow on CPU), cached
+        # per node, and served via get_summary so the UI can upgrade the text in place. Single worker
+        # — one autoregressive generation at a time keeps the 1-vCPU container from thrashing.
+        self._summaries: dict[int, str] = {}
+        self._summary_inflight: set[int] = set()
+        self._summary_lock = threading.Lock()
+        self._summary_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm-summary")
 
     # ---- info ----
     def info(self) -> dict:
@@ -88,8 +98,51 @@ class ModelService:
                                 model_type=self.model_type, method=method,
                                 num_hops=num_hops, max_nodes=max_nodes,
                                 gnnex_epochs=self.gnnex_epochs).to_dict()
-        contract["summary"] = narrate(contract)   # grounded plain-English narration (local HF model)
+        # Instant, grounded summary so the UI renders immediately; the fluent LLM version (if
+        # enabled) is generated in the background and fetched via /summary.
+        contract["summary"] = template_summary(contract)
+        contract["summary_pending"] = LLM_ENABLED
+        if LLM_ENABLED:
+            self._submit_summary(node_id, contract)
         return contract
+
+    # ---- async LLM narration ----
+    def _submit_summary(self, node_id: int, contract: dict | None) -> None:
+        """Queue background LLM generation for a node (no-op if cached or already in flight)."""
+        with self._summary_lock:
+            if node_id in self._summaries or node_id in self._summary_inflight:
+                return
+            self._summary_inflight.add(node_id)
+        self._summary_pool.submit(self._generate_summary, node_id, contract)
+
+    def _generate_summary(self, node_id: int, contract: dict | None) -> None:
+        try:
+            if contract is None:   # /summary hit a node whose /explain result wasn't seeded
+                contract = explain_node(self.model, self.data, node_id, self.feature_meta,
+                                        model_type=self.model_type,
+                                        gnnex_epochs=self.gnnex_epochs).to_dict()
+            text = llm_summary(contract) or template_summary(contract)
+            with self._summary_lock:
+                self._summaries[node_id] = text
+        except Exception:
+            with self._summary_lock:                       # fall back so the node never polls forever
+                self._summaries[node_id] = template_summary(contract or {"node_id": node_id})
+        finally:
+            with self._summary_lock:
+                self._summary_inflight.discard(node_id)
+
+    def get_summary(self, node_id: int) -> dict:
+        """Poll target for the async LLM summary. ready=True once available; kicks off generation if
+        it hasn't started (e.g. the explanation was served from the BFF cache without re-hitting us)."""
+        if not (0 <= node_id < int(self.data.num_nodes)):
+            raise ValueError(f"node_id {node_id} out of range [0, {int(self.data.num_nodes)})")
+        if not LLM_ENABLED:
+            return {"ready": True, "summary": None}        # nothing to upgrade to; UI keeps template
+        with self._summary_lock:
+            if node_id in self._summaries:
+                return {"ready": True, "summary": self._summaries[node_id]}
+        self._submit_summary(node_id, None)
+        return {"ready": False, "summary": None}
 
     # ---- metrics ----
     def metrics(self, split: str = "test") -> dict:

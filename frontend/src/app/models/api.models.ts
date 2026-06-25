@@ -32,8 +32,12 @@ export interface Explanation {
   neighborhood_subgraph: NeighborhoodSubgraph;
   faithfulness: { method: string; edge_importance_source: string; note: string };
   model_version: string;
-  summary?: string;   // grounded plain-English narration (local HF model)
+  summary?: string;          // instant grounded template narration (always present)
+  summary_pending?: boolean; // true if a fluent LLM rephrasing is being generated in the background
 }
+
+// Poll response for the async LLM narration (GET /api/summary/{dataset}/{node}).
+export interface SummaryStatus { ready: boolean; summary: string | null; }
 
 export interface AdversarialArtifact {
   schema_version: string; summary: string;

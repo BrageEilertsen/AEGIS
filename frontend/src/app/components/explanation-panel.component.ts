@@ -1,5 +1,7 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription, timer } from 'rxjs';
+import { ApiService } from '../services/api.service';
 import { Explanation } from '../models/api.models';
 
 @Component({
@@ -17,9 +19,14 @@ import { Explanation } from '../models/api.models';
         </span>
       </div>
 
-      <div class="ai-summary" *ngIf="ex.summary">
-        <div class="ai-summary-label">AI summary <span>· generated from the evidence below, grounded — not free-form</span></div>
-        <p>{{ ex.summary }}</p>
+      <div class="ai-summary" *ngIf="summaryText">
+        <div class="ai-summary-label">
+          {{ aiReady ? 'AI summary' : 'Summary' }}
+          <span *ngIf="aiReady">· rephrased by a local LLM from the evidence below, grounded — not free-form</span>
+          <span *ngIf="!aiReady && polling">· generating a plain-English summary<span class="dots"></span></span>
+          <span *ngIf="!aiReady && !polling">· grounded summary of the evidence below</span>
+        </div>
+        <p>{{ summaryText }}</p>
       </div>
 
       <h4>Matched laundering typology</h4>
@@ -50,8 +57,47 @@ import { Explanation } from '../models/api.models';
         {{ ex.faithfulness.note }}</p>
     </div>`,
 })
-export class ExplanationPanelComponent {
+export class ExplanationPanelComponent implements OnChanges, OnDestroy {
   @Input() explanation: Explanation | null = null;
+  @Input() datasetId: number | null = null;
+
+  summaryText = '';
+  aiReady = false;     // the fluent LLM rephrasing has arrived
+  polling = false;     // a background generation is being polled for
+  private sub?: Subscription;
+
+  constructor(private api: ApiService) {}
+
+  ngOnChanges(_: SimpleChanges) {
+    this.sub?.unsubscribe();
+    this.aiReady = false;
+    this.polling = false;
+    const ex = this.explanation;
+    this.summaryText = ex?.summary ?? '';
+    if (!ex || this.datasetId == null || !ex.summary_pending) return;
+    // The instant template summary already shows; poll the BFF until the LLM upgrade is ready
+    // (every 2.5s, give up after ~30s and keep the template).
+    this.polling = true;
+    const node = ex.node_id;
+    this.sub = timer(2500, 2500).subscribe((i) => {
+      this.api.summary(this.datasetId!, node).subscribe({
+        next: (s) => {
+          if (this.explanation?.node_id !== node) { this.stopPolling(); return; }
+          if (s.ready) {
+            if (s.summary) { this.summaryText = s.summary; this.aiReady = true; }
+            this.stopPolling();
+          } else if (i >= 11) {
+            this.stopPolling();   // ~30s elapsed — keep the grounded template
+          }
+        },
+        error: () => this.stopPolling(),
+      });
+    });
+  }
+
+  private stopPolling() { this.polling = false; this.sub?.unsubscribe(); }
+  ngOnDestroy() { this.sub?.unsubscribe(); }
+
   bar(v: number, ex: Explanation) {
     const max = Math.max(...ex.top_features.map((f) => f.importance), 1e-6);
     return Math.round((v / max) * 100);

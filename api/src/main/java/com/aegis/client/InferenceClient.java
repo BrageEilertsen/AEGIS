@@ -44,6 +44,11 @@ public class InferenceClient {
         }
     }
 
+    /** Poll the async LLM narration for a node: {ready, summary}. */
+    public JsonNode summary(int nodeId) {
+        return get("/summary/" + nodeId, JsonNode.class);
+    }
+
     public JsonNode adversarial() {
         try {
             return client.post().uri("/adversarial").body(java.util.Map.of()).retrieve().body(JsonNode.class);

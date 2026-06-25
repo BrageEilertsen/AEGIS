@@ -60,7 +60,7 @@ import { AdversarialDemoComponent } from './adversarial-demo.component';
             </div>
           </ng-template>
         </div>
-        <app-explanation-panel [explanation]="explanation"></app-explanation-panel>
+        <app-explanation-panel [explanation]="explanation" [datasetId]="dataset?.id ?? null"></app-explanation-panel>
         <div class="card" *ngIf="!selected" style="text-align:center;color:var(--muted)">
           ← Select a flagged transaction to see its faithful explanation.
         </div>
