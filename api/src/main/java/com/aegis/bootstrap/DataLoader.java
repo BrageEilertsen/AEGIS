@@ -1,5 +1,6 @@
 package com.aegis.bootstrap;
 
+import com.aegis.client.InferenceClient;
 import com.aegis.entity.Dataset;
 import com.aegis.repository.DatasetRepository;
 import com.fasterxml.jackson.databind.JsonNode;
