@@ -49,7 +49,7 @@ def account_key(bank: pd.Series, account: pd.Series) -> pd.Series:
     return bank.astype(str).str.strip() + "_" + account.astype(str).str.strip()
 
 
-def normalize(df: pd.DataFrame) -> pd.DataFrame:
+def normalize(df: pd.DataFrame, copy: bool = True) -> pd.DataFrame:
     """Validate the schema and add derived columns used by graph construction.
 
     Adds:
@@ -57,6 +57,10 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
       - ``src_account``  canonical sender account key   (From Bank, Account)
       - ``dst_account``  canonical receiver account key  (To Bank, Account.1)
       - ``label``        int 0/1 copy of ``Is Laundering``
+
+    ``copy=False`` mutates the input in place — value-identical to ``copy=True`` but avoids a full
+    duplication of the (large) frame; callers that own a freshly-loaded frame pass it to roughly
+    halve peak memory on the real 6.9M-row dataset.
     """
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
@@ -65,7 +69,8 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
             f"Found columns: {list(df.columns)}"
         )
 
-    df = df.copy()
+    if copy:
+        df = df.copy()
     ts = pd.to_datetime(df[COL_TIMESTAMP], format=TIMESTAMP_FORMAT, errors="coerce")
     if ts.isna().any():
         # Fall back to a flexible parse for any rows the strict format missed.
@@ -99,8 +104,13 @@ def load_ibm_aml(trans_csv: str | Path, nrows: int | None = None) -> pd.DataFram
             f"Download it first: bash data/download_ibm_aml.sh (needs a Kaggle token), "
             f"or run the pipeline with --synthetic for a smoke test."
         )
-    df = pd.read_csv(trans_csv, nrows=nrows)
-    return normalize(df)
+    # The two high-cardinality account columns dominate read memory; load them as `category`
+    # (they only feed account_key -> node identity, not the feature encodings, so the graph and
+    # features stay byte-identical). Currencies/format/amounts are left at default dtypes on
+    # purpose — categorising those shifts feature values vs the trained checkpoint.
+    acct_dtypes = {COL_FROM_ACCT: "category", COL_TO_ACCT: "category"}
+    df = pd.read_csv(trans_csv, nrows=nrows, dtype=acct_dtypes)
+    return normalize(df, copy=False)   # we own this freshly-read frame; skip the duplicate copy
 
 
 def make_synthetic_aml(
