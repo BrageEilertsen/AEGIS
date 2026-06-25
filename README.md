@@ -1,143 +1,116 @@
-# AEGIS
+<div align="center">
 
-**Adversarially-robust, Explainable, Graph-based Intelligence System for financial-crime detection.**
+# 🛡 AEGIS
 
-AEGIS detects money-laundering patterns in transaction networks using a Graph Neural Network
-(GNN) trained from scratch, and exposes the results through an interactive web app. Money
-laundering looks like a *shape* in a network (smurfing fan-outs, layering chains, circular
-flows) rather than a single bad transaction — graph models catch what per-transaction models
-miss. Every flag ships with a faithful explanation (salient edges/features + matched laundering
-typology), and the system demonstrates adversarial robustness: a naïve model fooled by graph
-perturbation, a hardened model that holds.
+### Adversarially-robust · Explainable · Graph-based Intelligence System
 
-The detailed build specification and the cluster operational ground rules are kept as local,
-uncommitted working documents (they contain environment-specific infrastructure details); they
-are intentionally not part of this public repository.
+**Graph-neural-network detection of money-laundering patterns in transaction networks — with faithful explanations, a grounded LLM summary, and demonstrated adversarial robustness — served end-to-end through a Python / Java / Angular stack.**
+
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-GNN-EE4C2C?logo=pytorch&logoColor=white)
+![PyG](https://img.shields.io/badge/PyTorch_Geometric-2.8-3C2179)
+![FastAPI](https://img.shields.io/badge/FastAPI-inference-009688?logo=fastapi&logoColor=white)
+![Java](https://img.shields.io/badge/Java_21-Spring_Boot_3-6DB33F?logo=springboot&logoColor=white)
+![Angular](https://img.shields.io/badge/Angular_17-Cytoscape.js-DD0031?logo=angular&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Postgres](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+
+</div>
+
+![AEGIS dashboard](docs/screenshots/dashboard.png)
+
+---
+
+## The problem
+
+Money laundering rarely looks like a single bad transaction — it looks like a **shape in a network**: smurfing fan-outs, layering chains, circular flows. Per-transaction models miss these structures by construction. AEGIS models the transaction network as a graph and uses a **Graph Neural Network** to catch the patterns, then makes every flag **auditable** — because in a regulated domain, an unexplained alert is useless to a compliance officer.
+
+## What it does
+
+| Capability | How |
+|---|---|
+| **Graph-based detection** | GCN → GraphSAGE → GAT behind a common interface; transaction-as-node graph with Δt flow edges. |
+| **Faithful explanations** | GNNExplainer minimal subgraph + feature attribution + GAT attention, matched to a laundering **typology**, rendered as a capped neighbourhood graph. |
+| **Grounded LLM summary** | A small **local** HF model turns the explainer's evidence into plain English for an analyst — fed *only* the structured evidence, so it can't invent reasons. |
+| **Adversarial robustness** | A structural evasion attack fools a naïve model; a self-loop / adversarially-trained model **holds** — shown side by side. |
+| **Honest evaluation** | Headline is **PR-AUC** and recall-at-precision, never accuracy (positives are ~0.05%). |
+| **Production-shaped** | FastAPI inference · Spring Boot BFF (graph-capping, caching, persistence) · Angular UI — not a notebook. |
+
+## Screenshots
+
+| Faithful explanation + grounded AI summary | Adversarial robustness |
+|---|---|
+| ![explanation](docs/screenshots/explanation.png) | ![adversarial](docs/screenshots/adversarial.png) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  D[IBM-AML transactions] --> G[Graph construction<br/>+ spectral features]
+  G --> M[GNN train<br/>GCN / GraphSAGE / GAT]
+  M --> CK[(best.pt<br/>checkpoint)]
+  CK --> INF[FastAPI inference<br/>score · explain · adversarial]
+  INF --> LLM[Local HF model<br/>grounded summary]
+  INF --> BFF[Spring Boot BFF<br/>graph-capping · caching]
+  BFF --> PG[(PostgreSQL)]
+  BFF --> UI[Angular + Cytoscape UI]
+  USER([Compliance analyst]) --> UI
+```
+
+**Why this shape:** the ML core (PyTorch/PyG) trains offline and emits a checkpoint; a thin **FastAPI** service owns model inference + explanations + the grounded summary; a **Spring Boot** BFF owns product logic (capping graphs to a renderable size, caching explanations in Postgres, orchestration); the **Angular** UI is pure presentation. Each layer is independently replaceable.
+
+## Results — real IBM-AML (LI-Small)
+
+6.92M transactions, 3,565 illicit (**0.05%** base rate). On the held-out temporal test split:
+
+| Metric | Value |
+|---|---|
+| **PR-AUC** | **0.239** (~9× the base rate) |
+| **ROC-AUC** | **0.884** |
+
+Honest findings (kept in the repo, not hidden): at a strict precision ≥ 0.9 the baseline's recall is ~0 (hard under this imbalance), and a GAT *without self-loops* collapses to ROC-AUC 0.57 on this fragmented graph (avg degree 0.14) because it discards isolated nodes' own features — re-enabling self-loops recovers 0.88. That same self-loop gap drives the adversarial demo.
+
+## Run it locally
+
+**Prerequisites:** Docker Desktop. (Optional, only if you want to retrain: Python 3.11.)
+
+```bash
+git clone https://github.com/BrageEilertsen/AEGIS.git && cd AEGIS
+
+# 1. Fetch the trained model + pre-built graph (lean: ~700MB RAM, instant startup)
+mkdir -p outputs/gcn_lismall
+python3 -c "from huggingface_hub import hf_hub_download as d; import shutil; \
+  shutil.copy(d('bragee/AEGIS','gcn-li-small/best.pt'),'outputs/gcn_lismall/best.pt'); \
+  shutil.copy(d('bragee/AEGIS','gcn-li-small/prebuilt_graph.pt'),'outputs/gcn_lismall/prebuilt_graph.pt')"
+
+# 2. Bring up the full stack
+cd infra && cp .env.example .env
+docker compose up --build          # UI → http://localhost:4200
+```
+
+That's Postgres + FastAPI inference (with the grounded summary model) + Spring Boot BFF + Angular UI, one command. To **retrain** instead, see [`ml/`](ml/) — `python ml/train.py --config experiments/gcn_lismall.yaml --out-dir outputs/gcn_lismall --feature-cache cache/features --seed 42`.
+
+## Tech stack
+
+**ML** PyTorch · PyTorch Geometric · scikit-learn · NetworkX  ·  **Serving** FastAPI · Uvicorn · Hugging Face `transformers`  ·  **Backend** Java 21 · Spring Boot 3 · JPA / Hibernate · PostgreSQL  ·  **Frontend** Angular 17 · Cytoscape.js · TypeScript  ·  **Infra** Docker Compose · (Azure Container Apps — in progress)
 
 ## Repository map
 
 | Path | Contents |
 |---|---|
-| `ml/` | Python ML core — PyTorch + PyTorch Geometric. Features, models, training, eval. |
-| `ml/data/` | Dataset loading + graph construction (transaction-as-node / account-as-node). |
-| `ml/features/` | Raw, local, and spectral (Laplacian PE, centralities) feature pipelines. |
-| `ml/models/` | GCN → GraphSAGE → GAT (→ temporal), behind a common interface. |
-| `ml/explain/` | GNNExplainer / PGExplainer / attention + typology matching. |
-| `ml/adversarial/` | Structural evasion attacks + defenses. |
-| `data/` | Dataset download scripts + prep (raw data is gitignored). |
-| `experiments/` | YAML configs — the single source of truth for hyperparameters. |
-| `cluster/` | `train.slurm`, `environment.yml`, cluster notes. |
-| `outputs/`, `logs/` | Per-run outputs and Slurm logs (gitignored). |
-| `cache/features/` | Persistent spectral-feature cache, keyed by graph hash (gitignored). |
-| `inference/` | Python FastAPI inference service (built on the Mac, later phase). |
-| `api/` | Java 21 / Spring Boot backend (built on the Mac, later phase). |
-| `frontend/` | Angular + Cytoscape.js UI (built on the Mac, later phase). |
-| `prototype/` | Streamlit/Gradio intermediate prototype. |
-| `infra/` | Dockerfiles, docker-compose, Azure deploy config. |
+| `ml/` | PyTorch/PyG core — graph construction, spectral features, GCN/SAGE/GAT, training, eval, explainability, adversarial. |
+| `inference/` | FastAPI service wrapping the checkpoint (`/score /flags /explain /metrics /adversarial`) + grounded LLM narration. |
+| `api/` | Spring Boot BFF — controllers/services/repositories, RestClient to FastAPI, graph-capping, JPA. |
+| `frontend/` | Angular + Cytoscape.js UI — dashboard, explanation panel, capped subgraph, adversarial demo. |
+| `experiments/` | YAML configs — single source of truth per run. |
+| `infra/` | Docker Compose stack (+ Azure deploy, in progress). |
 
-Only the ML core (`ml/`, `data/`, `experiments/`, `cluster/`) is developed on the Simula
-cluster. The Java backend, Angular frontend, and FastAPI service are built locally on the Mac.
+## What this project demonstrates
 
-## Running training (on the cluster, via Slurm)
+End-to-end ownership of a non-trivial, regulated-domain ML product: graph ML, **trustworthy-AI** concerns (faithful explanations + grounded GenAI, relevant to the EU AI Act), adversarial robustness, honest evaluation, and the full delivery stack from PyTorch to a Java BFF to an Angular UI — containerised and cloud-ready.
 
-The single training entrypoint exposes a stable CLI:
+## Status & roadmap
 
-```bash
-python ml/train.py --config <yaml> --out-dir <dir> --feature-cache <dir> --seed <int>
-```
-
-Heavy training runs through Slurm on a GPU node (the login node has no usable GPU):
-
-```bash
-mkdir -p /home/brageei/AEGIS/logs          # must exist before submitting
-sbatch cluster/train.slurm experiments/gcn_baseline.yaml
-```
-
-Monitor with `squeue -u $USER` and `tail -f logs/aegis_train-<jobid>.out`.
-
-## Environment
-
-Python venv at `/home/brageei/AEGIS/env`, PyTorch + PyG on CUDA **12.1** (`cu121` wheels). The
-compiled PyG extras (`torch_scatter`, `torch_sparse`) must be installed and verified on a GPU
-node — not on the login node. See [`cluster/`](cluster/) for pinned dependencies.
-
-## Building the graph (Phase 1)
-
-Once `data/raw/LI-Small_Trans.csv` is downloaded (`bash data/download_ibm_aml.sh`, needs a Kaggle
-token), build and cache the PyG graph(s) and print stats:
-
-```bash
-source env/bin/activate
-python ml/data/build_graph.py --config experiments/gcn_baseline.yaml --graph both
-```
-
-No data yet? Smoke-test the whole pipeline offline on a synthetic IBM-AML-schema frame:
-
-```bash
-python ml/data/build_graph.py --config experiments/gcn_baseline.yaml --synthetic --graph both
-python tests/test_phase1_graph.py        # correctness tests (edges, Δt window, temporal split)
-```
-
-Built graphs are cached content-addressed under `data/processed/` (gitignored), keyed by variant,
-graph view, Δt, subsampling, and split — so they are reused across runs.
-
-## Training & evaluation
-
-```bash
-python ml/train.py --config experiments/gcn_baseline.yaml --out-dir outputs/gcn --feature-cache cache/features --seed 42
-python ml/eval.py  --run-dir outputs/gcn --split test --feature-cache cache/features
-python ml/explain/cli.py --run-dir outputs/gcn --node <idx> --feature-cache cache/features   # explanation contract
-python -m ml.adversarial --naive-ckpt <naive>/best.pt --hardened-ckpt <hardened>/best.pt \
-    --feature-cache cache/features --out-dir outputs/adv --smoke-test                          # before/after artifact
-```
-
-Each config (`experiments/*.yaml`) is the single source of truth for its run. Every `_synthetic`
-config runs on the login-node CPU with no download; the `lismall` / `elliptic` configs run on a GPU
-node via `cluster/*.slurm`. The full test suite (`tests/test_phase*.py`, 47 tests) runs on CPU.
-
-## Status — cluster ML core (Phases 1–5) complete
-
-All verified on synthetic/fixture data on the login-node CPU; the same code runs on the real
-datasets via Slurm once they are downloaded.
-
-- **Phase 0 — scaffold, venv, Slurm, stable train CLI.**
-- **Phase 1 — data & graph construction:** IBM-AML loader, transaction/account graphs, configurable
-  Δt, temporal 60/20/20 split, content-addressed cache (`ml/data/`).
-- **Phase 2 — spectral features + GCN:** raw + local + Laplacian-PE/centrality features
-  (per-connected-component, train-only standardized, cached), GCN, PR-AUC / recall@precision /
-  F1-illicit metrics (`ml/features/`, `ml/models/gcn.py`, `ml/common.py`).
-- **Phase 3 — GraphSAGE + GAT + Elliptic1 benchmark:** common `forward(data)` interface, GAT
-  per-edge attention, inductive-sampling option, Elliptic loader (`ml/models/`, `ml/data/elliptic.py`).
-- **Phase 4 — explainability:** GNNExplainer + GAT attention + feature attribution + k-hop subgraph
-  + typology matching → versioned explanation contract (`ml/explain/`).
-- **Phase 5 — adversarial robustness:** structural evasion attack + adversarial-training/self-loop
-  defense + reproducible before/after artifact (`ml/adversarial/`).
-
-### Real LI-Small result (first run, GCN baseline, subsampled)
-6.92M transactions, 3,565 illicit (0.05%). On the held-out temporal test split: **PR-AUC 0.236
-(~9× the base rate), ROC-AUC 0.88.** Honest findings: at strict precision≥0.9 the baseline's
-recall is 0 (hard under this imbalance); and a GAT *without self-loops* collapses to ROC-AUC 0.57
-on this fragmented graph (avg degree 0.14, mostly isolated transactions) because it discards
-isolated nodes' own features — re-enabling self-loops recovers ROC-AUC 0.88. The same self-loop
-gap drives the adversarial demo (structure-reliant model fooled; self-loop model holds).
-
-## Running the app (Phases 6–7)
-
-The application layer (built here, runs on the Mac/locally). Only the ML core trains on the cluster.
-
-- **`inference/`** — FastAPI service wrapping the checkpoint (`/score /flags /explain /metrics
-  /adversarial`); verified end-to-end against the real model. See [inference/README.md](inference/README.md).
-- **`prototype/`** — Streamlit Phase-6 de-risk UI over the service.
-- **`api/`** — Spring Boot 3 / Java 21 BFF: layered controllers/services/repositories, RestClient
-  to FastAPI, graph-capping, JPA (Postgres), `@WebMvcTest` + capping unit tests.
-- **`frontend/`** — Angular 17 + Cytoscape.js: dashboard, capped flagged-subgraph canvas, slide-in
-  explanation panel, adversarial before/after, metrics panel.
-
-One-command full stack (Postgres + inference + API + frontend), with a seeded adversarial demo:
-```bash
-cd infra && cp .env.example .env     # set AEGIS_CHECKPOINT to your best run dir
-docker compose up --build            # UI at http://localhost:4200, API :8080, inference :8000
-```
-
-**Next:** Phase 8 — deploy to Azure (Container Apps + Azure DB for PostgreSQL); README +
-architecture diagram + demo video. Build order & acceptance criteria per spec §12.
+- ✅ Phases 1–7 — ML core, explainability, adversarial robustness, inference, BFF, frontend, Docker Compose.
+- ✅ Grounded LLM explanation summaries.
+- 🔜 Phase 8 — Azure deployment (Container Apps + Azure Database for PostgreSQL) for a live public demo.
