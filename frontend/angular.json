@@ -13,6 +13,7 @@
             "outputPath": "dist/aegis-frontend",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "outputHashing": "all",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "assets": [],
