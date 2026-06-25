@@ -14,6 +14,11 @@
 ![Angular](https://img.shields.io/badge/Angular_17-Cytoscape.js-DD0031?logo=angular&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Postgres](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Azure](https://img.shields.io/badge/Azure-Container_Apps-0078D4?logo=microsoftazure&logoColor=white)
+
+### ▶ [Live demo](https://aegis-frontend.nicesea-483c92cd.norwayeast.azurecontainerapps.io)
+
+<sub>Running on Azure Container Apps. Click a flagged transaction to see its responsible neighbourhood, faithful feature/edge attribution, and a grounded plain-English AI summary.</sub>
 
 </div>
 
@@ -30,8 +35,8 @@ Money laundering rarely looks like a single bad transaction — it looks like a 
 | Capability | How |
 |---|---|
 | **Graph-based detection** | GCN → GraphSAGE → GAT behind a common interface; transaction-as-node graph with Δt flow edges. |
-| **Faithful explanations** | GNNExplainer minimal subgraph + feature attribution + GAT attention, matched to a laundering **typology**, rendered as a capped neighbourhood graph. |
-| **Grounded LLM summary** | A small **local** HF model turns the explainer's evidence into plain English for an analyst — fed *only* the structured evidence, so it can't invent reasons. |
+| **Faithful explanations** | GNNExplainer over the node's **k-hop computation subgraph** (faithful for a k-layer GNN, ~1s instead of ~100s) + feature attribution + GAT attention, matched to a laundering **typology**, rendered as a capped neighbourhood graph. |
+| **Grounded LLM summary** | An instruct LLM turns the explainer's evidence into plain English for an analyst — fed *only* the structured evidence + a feature glossary, so it can't invent reasons. Served **async** (graph is instant; summary writes in ~1–3s) via a hosted model, with a deterministic template fallback. |
 | **Adversarial robustness** | A structural evasion attack fools a naïve model; a self-loop / adversarially-trained model **holds** — shown side by side. |
 | **Honest evaluation** | Headline is **PR-AUC** and recall-at-precision, never accuracy (positives are ~0.05%). |
 | **Production-shaped** | FastAPI inference · Spring Boot BFF (graph-capping, caching, persistence) · Angular UI — not a notebook. |
@@ -50,7 +55,7 @@ flowchart LR
   G --> M[GNN train<br/>GCN / GraphSAGE / GAT]
   M --> CK[(best.pt<br/>checkpoint)]
   CK --> INF[FastAPI inference<br/>score · explain · adversarial]
-  INF --> LLM[Local HF model<br/>grounded summary]
+  INF --> LLM[Hosted LLM<br/>grounded async summary]
   INF --> BFF[Spring Boot BFF<br/>graph-capping · caching]
   BFF --> PG[(PostgreSQL)]
   BFF --> UI[Angular + Cytoscape UI]
@@ -92,7 +97,7 @@ That's Postgres + FastAPI inference (with the grounded summary model) + Spring B
 
 ## Tech stack
 
-**ML** PyTorch · PyTorch Geometric · scikit-learn · NetworkX  ·  **Serving** FastAPI · Uvicorn · Hugging Face `transformers`  ·  **Backend** Java 21 · Spring Boot 3 · JPA / Hibernate · PostgreSQL  ·  **Frontend** Angular 17 · Cytoscape.js · TypeScript  ·  **Infra** Docker Compose · (Azure Container Apps — in progress)
+**ML** PyTorch · PyTorch Geometric · scikit-learn · NetworkX  ·  **Serving** FastAPI · Uvicorn · Hugging Face inference (hosted LLM)  ·  **Backend** Java 21 · Spring Boot 3 · JPA / Hibernate · PostgreSQL  ·  **Frontend** Angular 17 · Cytoscape.js · TypeScript  ·  **Infra** Docker Compose · Azure Container Apps · Azure Database for PostgreSQL · Bicep IaC · GitHub Actions → GHCR
 
 ## Repository map
 
@@ -103,7 +108,7 @@ That's Postgres + FastAPI inference (with the grounded summary model) + Spring B
 | `api/` | Spring Boot BFF — controllers/services/repositories, RestClient to FastAPI, graph-capping, JPA. |
 | `frontend/` | Angular + Cytoscape.js UI — dashboard, explanation panel, capped subgraph, adversarial demo. |
 | `experiments/` | YAML configs — single source of truth per run. |
-| `infra/` | Docker Compose stack (+ Azure deploy, in progress). |
+| `infra/` | Docker Compose stack + Azure deploy (`infra/azure` — Bicep IaC, deploy script). |
 
 ## What this project demonstrates
 
@@ -112,5 +117,5 @@ End-to-end ownership of a non-trivial, regulated-domain ML product: graph ML, **
 ## Status & roadmap
 
 - ✅ Phases 1–7 — ML core, explainability, adversarial robustness, inference, BFF, frontend, Docker Compose.
-- ✅ Grounded LLM explanation summaries.
-- 🔜 Phase 8 — Azure deployment (Container Apps + Azure Database for PostgreSQL) for a live public demo.
+- ✅ Grounded LLM explanation summaries (hosted, async, with template fallback).
+- ✅ Phase 8 — Azure deployment (Container Apps + Azure Database for PostgreSQL), **[live](https://aegis-frontend.nicesea-483c92cd.norwayeast.azurecontainerapps.io)**.
