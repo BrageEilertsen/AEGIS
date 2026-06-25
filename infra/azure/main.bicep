@@ -33,6 +33,12 @@ param hfToken string = ''
 @description('Hosted instruct model id for the LLM summary (used only when hfToken is set)')
 param llmModel string = 'Qwen/Qwen2.5-7B-Instruct'
 
+@description('Entra ID (Azure AD) OIDC issuer, e.g. https://login.microsoftonline.com/<tenant>/v2.0. Empty -> public demo, auth off.')
+param oidcIssuer string = ''
+
+@description('Entra ID API audience (the app registration application/client id). Empty -> audience check skipped.')
+param oidcAudience string = ''
+
 var llmOn = !empty(hfToken)
 var pgName = toLower('${prefix}-pg-${uniqueString(resourceGroup().id)}')
 
@@ -142,6 +148,10 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'AEGIS_DB_PASSWORD', secretRef: 'db-pwd' }
             { name: 'AEGIS_INFERENCE_URL', value: 'https://${inference.properties.configuration.ingress.fqdn}' }
             { name: 'AEGIS_CORS_ORIGINS', value: corsOrigins }
+            // Entra ID (Azure AD) auth: empty -> public read-only demo (resource server off); set both
+            // -> analyst/case endpoints require a valid Entra access token. See infra/azure/README.md.
+            { name: 'AEGIS_OIDC_ISSUER', value: oidcIssuer }
+            { name: 'AEGIS_OIDC_AUDIENCE', value: oidcAudience }
           ]
         }
       ]

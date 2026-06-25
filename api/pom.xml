@@ -46,6 +46,22 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-aop</artifactId>
     </dependency>
+    <!-- Spring Security as an OAuth2 resource server: validates Entra ID (Azure AD) access tokens
+         and maps app roles to authorities. Activated only when AEGIS_OIDC_ISSUER is set; otherwise
+         the chain permits everything so the public read-only demo keeps working. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
     <!-- Bucket4j: per-client token-bucket rate limiting on the public endpoints (cost/abuse guard). -->
     <dependency>
       <groupId>com.bucket4j</groupId>

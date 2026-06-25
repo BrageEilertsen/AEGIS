@@ -88,9 +88,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         res.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         res.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         res.setHeader("Retry-After", Long.toString(retryAfter));
-        // This filter runs before Spring MVC CORS, so add the header ourselves or the browser hides
-        // the 429 behind a CORS error (read-only public demo → any origin is fine).
-        res.setHeader("Access-Control-Allow-Origin", "*");
+        // CORS headers are added upstream by Spring Security's CorsFilter (which runs before this
+        // filter), so the browser can still read this 429 — we don't set them here (avoids a
+        // duplicate Access-Control-Allow-Origin, which browsers reject).
         res.getWriter().write("""
             {"type":"about:blank","title":"Too Many Requests","status":429,\
             "detail":"Rate limit exceeded. Retry in %d seconds.","retryAfterSeconds":%d}"""
