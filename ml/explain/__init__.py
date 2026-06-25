@@ -60,7 +60,7 @@ def explain_node(model, data, node_idx: int, feature_meta: dict, *, model_type: 
 
     # Feature attribution always comes from GNNExplainer's node mask; its edge mask is also the
     # edge-importance source for non-attention models and a faithfulness cross-check for GAT.
-    gnn = run_gnnexplainer(model, data, node_idx, epochs=gnnex_epochs)
+    gnn = run_gnnexplainer(model, data, node_idx, epochs=gnnex_epochs, num_hops=num_hops)
     node_mask, gnn_edge_mask = gnn["node_mask"], gnn["edge_mask"]
 
     supports_attn = getattr(model, "supports_attention", False)

@@ -51,6 +51,16 @@ def explain(req: ExplainRequest):
         raise HTTPException(status_code=422, detail=str(e))
 
 
+@app.get("/summary/{node_id}")
+def summary(node_id: int):
+    """Poll for the async, grounded LLM narration of a node's explanation.
+    Returns {ready: bool, summary: str|null}; the UI shows the instant template until ready."""
+    try:
+        return get_service().get_summary(node_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 @app.get("/metrics")
 def metrics(split: str = Query("test", pattern="^(val|test)$")):
     return get_service().metrics(split)

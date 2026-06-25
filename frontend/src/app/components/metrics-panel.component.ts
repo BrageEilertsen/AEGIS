@@ -8,15 +8,14 @@ import { Metrics } from '../models/api.models';
   imports: [CommonModule],
   template: `
     <div class="card" *ngIf="metrics as m">
-      <h3>Held-out test performance <span class="muted">(illicit class)</span></h3>
-      <div style="display:flex;gap:28px;flex-wrap:wrap">
-        <div><div class="metric">{{ fmt(m.pr_auc) }}</div><div class="muted">PR-AUC</div></div>
-        <div><div class="metric">{{ fmt(m.roc_auc) }}</div><div class="muted">ROC-AUC</div></div>
-        <div><div class="metric">{{ fmt(m.recall_at_precision) }}</div>
-             <div class="muted">recall @ p≥{{ m.min_precision }}</div></div>
-        <div><div class="metric">{{ fmt(m.f1_illicit) }}</div><div class="muted">F1 (illicit)</div></div>
+      <h3>Held-out test performance <span class="muted" style="font-weight:500">· illicit class</span></h3>
+      <div class="metric-row" style="margin-top:14px">
+        <div class="metric-card"><div class="metric grad">{{ fmt(m.pr_auc) }}</div><div class="metric-label">PR-AUC</div></div>
+        <div class="metric-card"><div class="metric">{{ fmt(m.roc_auc) }}</div><div class="metric-label">ROC-AUC</div></div>
+        <div class="metric-card"><div class="metric">{{ fmt(m.recall_at_precision) }}</div><div class="metric-label">recall &#64; p≥{{ m.min_precision }}</div></div>
+        <div class="metric-card"><div class="metric">{{ fmt(m.f1_illicit) }}</div><div class="metric-label">F1 (illicit)</div></div>
       </div>
-      <p class="muted" style="font-size:12px">Accuracy is meaningless at ~{{ pct(m.n_pos, m.n_total) }} positives —
+      <p class="muted" style="font-size:12px;margin:14px 0 0">Accuracy is meaningless at ~{{ pct(m.n_pos, m.n_total) }} positives —
         PR-AUC and recall-at-precision are the headline (spec §7.6).</p>
     </div>`,
 })

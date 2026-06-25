@@ -1,0 +1,17 @@
+# Keep build contexts small (esp. the repo-root context used for the inference image build).
+.git
+env/
+.venv/
+data/
+outputs/
+cache/
+logs/
+frontend/node_modules
+frontend/.angular
+frontend/dist
+api/target
+**/__pycache__
+*.pyc
+*.pt
+*.ckpt
+docs/screenshots

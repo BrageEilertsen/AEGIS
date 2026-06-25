@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { AdversarialArtifact, Dataset, Explanation, Flag, Metrics } from '../models/api.models';
+import { AdversarialArtifact, Dataset, Explanation, Flag, Metrics, SummaryStatus } from '../models/api.models';
 
 /** Calls the Spring Boot BFF (which orchestrates the FastAPI inference service). */
 @Injectable({ providedIn: 'root' })
@@ -23,6 +23,10 @@ export class ApiService {
 
   explain(datasetId: number, nodeId: number): Observable<Explanation> {
     return this.http.get<Explanation>(`${this.base}/explain/${datasetId}/${nodeId}`);
+  }
+
+  summary(datasetId: number, nodeId: number): Observable<SummaryStatus> {
+    return this.http.get<SummaryStatus>(`${this.base}/summary/${datasetId}/${nodeId}`);
   }
 
   adversarial(): Observable<AdversarialArtifact> {

@@ -29,6 +29,10 @@ public class AnalysisService {
 
     public MetricsDto metrics(String split) { return inference.metrics(split); }
 
+    /** Async LLM narration for a node ({ready, summary}); the UI polls this to upgrade the
+     *  instant template summary. Stateless passthrough — the inference service caches it. */
+    public JsonNode summary(int nodeId) { return inference.summary(nodeId); }
+
     public JsonNode adversarial() { return inference.adversarial(); }
 
     /** Explanation contract for a node, capped for rendering, cached by (dataset, node). */

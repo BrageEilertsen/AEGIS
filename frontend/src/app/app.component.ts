@@ -6,11 +6,15 @@ import { RouterOutlet } from '@angular/router';
   standalone: true,
   imports: [RouterOutlet],
   template: `
-    <header style="padding:14px 22px;border-bottom:1px solid #283142;display:flex;gap:12px;align-items:baseline">
-      <h1 style="margin:0">🛡️ AEGIS</h1>
-      <span class="muted">money-laundering detection on transaction graphs · explainable · adversarially robust</span>
+    <header class="app-header">
+      <div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/></svg></div>
+      <div>
+        <div class="brand">AE<span class="accent">GIS</span></div>
+        <div class="tagline">Money-laundering detection on transaction graphs · explainable · adversarially robust</div>
+      </div>
+      <span class="badge-live"><span class="status-dot"></span> live model</span>
     </header>
-    <main style="padding:22px;max-width:1400px;margin:0 auto"><router-outlet></router-outlet></main>
+    <main style="padding:24px;max-width:1440px;margin:0 auto"><router-outlet></router-outlet></main>
   `,
 })
 export class AppComponent {}

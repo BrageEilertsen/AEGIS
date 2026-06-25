@@ -1,7 +1,7 @@
 # One-command local bring-up of the full AEGIS stack (spec §8.1, §10 Docker Compose).
-#   cd infra && cp .env.example .env   # then edit AEGIS_CHECKPOINT if needed
-#   docker compose up --build
-# Mounts the trained checkpoint + feature cache + data into the inference service (gitignored).
+#   cd infra && docker compose up --build      # UI -> http://localhost:4200
+# The inference image bakes the model + checkpoint + pre-built graph (pulled from HF at build),
+# so no host mounts or manual downloads are needed. Same image runs on Azure.
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,21 +18,24 @@ services:
 
   inference:
     build: { context: .., dockerfile: inference/Dockerfile }
+    # Model + checkpoint + pre-built graph are baked into the image — no mounts, no manual download.
     environment:
-      AEGIS_CHECKPOINT: ${AEGIS_CHECKPOINT:-/data/outputs/gcn_lismall/best.pt}
-      AEGIS_FEATURE_CACHE: /data/cache/features
-      AEGIS_ADVERSARIAL_ARTIFACT: ${AEGIS_ADVERSARIAL_ARTIFACT:-/data/seed/demo_adversarial_artifact.json}
-    volumes:
-      - ../outputs:/data/outputs:ro
-      - ../cache:/data/cache
-      - ../data:/app/data             # raw CSV + processed graph cache for the startup rebuild
-      - ../infra/seed:/data/seed:ro   # seeded demo adversarial before/after artifact
+      AEGIS_LLM_SUMMARY: ${AEGIS_LLM_SUMMARY:-1}            # set 0 to disable the LLM summary
+      AEGIS_LLM_MODEL: ${AEGIS_LLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
     ports: ["8000:8000"]
+    healthcheck:
+      # /health triggers the one-time graph load (~5-10s with the pre-built graph) then returns 200.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\" || exit 1"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 60s
 
   api:
     build: { context: ../api, dockerfile: Dockerfile }
     depends_on:
       postgres: { condition: service_healthy }
+      inference: { condition: service_healthy }   # BFF seeds its dataset from inference at startup
     environment:
       AEGIS_DB_URL: jdbc:postgresql://postgres:5432/aegis
       AEGIS_DB_USER: aegis

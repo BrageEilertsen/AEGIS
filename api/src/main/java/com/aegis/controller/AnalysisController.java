@@ -40,6 +40,13 @@ public class AnalysisController {
         return service.explain(datasetId, nodeId).get("neighborhood_subgraph");
     }
 
+    /** Async LLM narration for a node ({ready, summary}); the UI polls this to upgrade the
+     *  instant template summary shown with the explanation. */
+    @GetMapping("/summary/{datasetId}/{nodeId}")
+    public JsonNode summary(@PathVariable Long datasetId, @PathVariable int nodeId) {
+        return service.summary(nodeId);
+    }
+
     @GetMapping("/metrics/{datasetId}")
     public MetricsDto metrics(@PathVariable Long datasetId,
                               @RequestParam(defaultValue = "test") String split) {

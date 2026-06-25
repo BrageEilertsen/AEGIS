@@ -56,3 +56,11 @@ hf_token*
 *.swp
 .idea/
 .vscode/
+
+# Node / Angular (frontend) build artifacts
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
+
+# Java / Maven (api) build artifacts
+api/target/
