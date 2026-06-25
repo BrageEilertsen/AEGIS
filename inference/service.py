@@ -45,6 +45,9 @@ class ModelService:
             self.df = df
         self.model.to(self.device)
         self.data = data.to(self.device)
+        # GNNExplainer epochs: 120 (default) is faithful but ~100s/node on CPU. Lower it for a
+        # snappy interactive demo (results cache per node in the BFF after the first call).
+        self.gnnex_epochs = int(os.environ.get("AEGIS_GNNEX_EPOCHS", "40"))
         with torch.no_grad():
             self._scores = illicit_scores(self.model(self.data))   # [N] illicit prob
         self.min_precision = float(self.cfg.get("eval", {}).get("min_precision", 0.9))
@@ -81,7 +84,8 @@ class ModelService:
             raise ValueError(f"node_id {node_id} out of range [0, {int(self.data.num_nodes)})")
         contract = explain_node(self.model, self.data, node_id, self.feature_meta,
                                 model_type=self.model_type, method=method,
-                                num_hops=num_hops, max_nodes=max_nodes)
+                                num_hops=num_hops, max_nodes=max_nodes,
+                                gnnex_epochs=self.gnnex_epochs)
         return contract.to_dict()
 
     # ---- metrics ----
