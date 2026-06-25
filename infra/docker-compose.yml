@@ -25,6 +25,9 @@ services:
       # Pre-built featurized graph: instant, ~700MB RAM (skips the 6.9M-row CSV load, ~3.5GB).
       # If the file is absent the service falls back to rebuilding from the raw CSV.
       AEGIS_PREBUILT_GRAPH: ${AEGIS_PREBUILT_GRAPH:-/data/outputs/gcn_lismall/prebuilt_graph.pt}
+      # Grounded plain-English explanation summaries via a small local HF model (set to 0 to disable).
+      AEGIS_LLM_SUMMARY: ${AEGIS_LLM_SUMMARY:-1}
+      AEGIS_LLM_MODEL: ${AEGIS_LLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
     volumes:
       - ../outputs:/data/outputs:ro
       - ../cache:/data/cache

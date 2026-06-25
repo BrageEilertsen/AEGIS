@@ -32,6 +32,7 @@ export interface Explanation {
   neighborhood_subgraph: NeighborhoodSubgraph;
   faithfulness: { method: string; edge_importance_source: string; note: string };
   model_version: string;
+  summary?: string;   // grounded plain-English narration (local HF model)
 }
 
 export interface AdversarialArtifact {

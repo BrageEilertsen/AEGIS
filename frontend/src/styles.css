@@ -161,6 +161,15 @@ tbody tr.selected td { background: rgba(124,92,255,.12); box-shadow: inset 2px 0
         background-size: 400% 100%; animation: shimmer 1.3s ease infinite; border-radius: 6px; }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 
+/* ---- AI summary callout ---- */
+.ai-summary { margin-top: 14px; padding: 14px 16px; border-radius: 12px;
+  background: linear-gradient(180deg, rgba(124,92,255,.10), rgba(78,168,255,.06));
+  border: 1px solid rgba(124,92,255,.28); }
+.ai-summary-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+  color: var(--accent); margin-bottom: 6px; }
+.ai-summary-label span { color: var(--faint); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.ai-summary p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+
 /* ---- misc ---- */
 hr.div { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }

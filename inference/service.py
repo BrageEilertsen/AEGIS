@@ -19,6 +19,8 @@ from ml.explain import explain_node, load_checkpoint_and_model
 from ml.features.assemble import assemble_features
 from ml.train import build_graph, feature_config, resolve_device
 
+from inference.narrate import narrate
+
 
 class ModelService:
     """Holds the loaded model + featurized graph + cached scores for the serving endpoints."""
@@ -85,8 +87,9 @@ class ModelService:
         contract = explain_node(self.model, self.data, node_id, self.feature_meta,
                                 model_type=self.model_type, method=method,
                                 num_hops=num_hops, max_nodes=max_nodes,
-                                gnnex_epochs=self.gnnex_epochs)
-        return contract.to_dict()
+                                gnnex_epochs=self.gnnex_epochs).to_dict()
+        contract["summary"] = narrate(contract)   # grounded plain-English narration (local HF model)
+        return contract
 
     # ---- metrics ----
     def metrics(self, split: str = "test") -> dict:

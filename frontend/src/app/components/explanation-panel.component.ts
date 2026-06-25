@@ -17,6 +17,11 @@ import { Explanation } from '../models/api.models';
         </span>
       </div>
 
+      <div class="ai-summary" *ngIf="ex.summary">
+        <div class="ai-summary-label">AI summary <span>· generated from the evidence below, grounded — not free-form</span></div>
+        <p>{{ ex.summary }}</p>
+      </div>
+
       <h4>Matched laundering typology</h4>
       <p style="margin:0">
         <span class="pill" style="background:rgba(245,166,35,.15);border-color:rgba(245,166,35,.4);color:var(--warn)">
