@@ -41,7 +41,11 @@ Money laundering rarely looks like a single bad transaction — it looks like a 
 | **Grounded LLM summary** | An instruct LLM turns the explainer's evidence into plain English for an analyst — fed *only* the structured evidence + a feature glossary, so it can't invent reasons. Served **async** (graph is instant; summary writes in ~1–3s) via a hosted model, with a deterministic template fallback. |
 | **Adversarial robustness** | A structural evasion attack fools a naïve model; a self-loop / adversarially-trained model **holds** — shown side by side. |
 | **Honest evaluation** | Headline is **PR-AUC** and recall-at-precision, never accuracy (positives are ~0.05%). |
-| **Production-shaped** | FastAPI inference · Spring Boot BFF (graph-capping, caching, persistence) · Angular UI — not a notebook. |
+| **Real-time monitoring** | A streaming pre-screen (Spring Kafka, pluggable; simulated feed by default) scores transactions on arrival against a sliding **windowed account-graph**; fan-out/fan-in/high-value motifs raise alerts pushed **live to the UI over SSE**. |
+| **Case-management workflow** | Alert → Case → Investigation → Disposition, governed by a **Spring State Machine**; analyst assignment, SLAs, full action history. **Segregation of duties** — only reviewers close a case. |
+| **Tamper-evident audit** | Every decision is appended to a **hash-chained** trail; altering any past record breaks verification (EU AI Act traceability). |
+| **Secured & resilient** | OAuth2/OIDC via **Entra ID** with role-based access (public read tier preserved); **Resilience4j** circuit-breaker/retry/bulkhead around the model; **Bucket4j** rate-limiting; **Java 21 virtual threads** for the fan-out. |
+| **Production-shaped** | FastAPI inference · Spring Boot BFF (security, workflow, audit, streaming, persistence) · Angular UI — with OpenAPI, Prometheus metrics, ArchUnit, WireMock + Testcontainers tests. Not a notebook. |
 
 ## Screenshots
 
@@ -58,13 +62,15 @@ flowchart LR
   M --> CK[(best.pt<br/>checkpoint)]
   CK --> INF[FastAPI inference<br/>score · explain · adversarial]
   INF --> LLM[Hosted LLM<br/>grounded async summary]
-  INF --> BFF[Spring Boot BFF<br/>graph-capping · caching]
-  BFF --> PG[(PostgreSQL)]
-  BFF --> UI[Angular + Cytoscape UI]
+  STREAM[Transaction stream<br/>Kafka / simulated] --> BFF
+  INF --> BFF[Spring Boot BFF<br/>security · workflow · audit<br/>streaming · resilience]
+  BFF --> PG[(PostgreSQL<br/>cases · audit chain)]
+  BFF -- SSE / REST --> UI[Angular + Cytoscape UI]
+  ENTRA[Entra ID OIDC] -.RBAC.-> BFF
   USER([Compliance analyst]) --> UI
 ```
 
-**Why this shape:** the ML core (PyTorch/PyG) trains offline and emits a checkpoint; a thin **FastAPI** service owns model inference + explanations + the grounded summary; a **Spring Boot** BFF owns product logic (capping graphs to a renderable size, caching explanations in Postgres, orchestration); the **Angular** UI is pure presentation. Each layer is independently replaceable.
+**Why this shape:** the ML core (PyTorch/PyG) trains offline and emits a checkpoint; a thin **FastAPI** service owns model inference + explanations + the grounded summary; the **Spring Boot** BFF is the product platform — it secures access (Entra ID + RBAC), runs the real-time streaming pre-screen, drives the AML case-management workflow, writes the tamper-evident audit chain, and isolates the model behind circuit-breakers; the **Angular** UI is pure presentation (with a live SSE monitoring view). Each layer is independently replaceable.
 
 ## Results — real IBM-AML (LI-Small)
 
@@ -99,7 +105,7 @@ That's Postgres + FastAPI inference (with the grounded summary model) + Spring B
 
 ## Tech stack
 
-**ML** PyTorch · PyTorch Geometric · scikit-learn · NetworkX  ·  **Serving** FastAPI · Uvicorn · Hugging Face inference (hosted LLM)  ·  **Backend** Java 21 · Spring Boot 3 · JPA / Hibernate · PostgreSQL  ·  **Frontend** Angular 17 · Cytoscape.js · TypeScript  ·  **Infra** Docker Compose · Azure Container Apps · Azure Database for PostgreSQL · Bicep IaC · GitHub Actions → GHCR
+**ML** PyTorch · PyTorch Geometric · scikit-learn · NetworkX  ·  **Serving** FastAPI · Uvicorn · Hugging Face inference (hosted LLM)  ·  **Backend** Java 21 (virtual threads) · Spring Boot 3 · Spring Security (OAuth2/OIDC, Entra ID) · Spring State Machine · Spring for Apache Kafka · Resilience4j · Bucket4j · JPA/Hibernate · PostgreSQL  ·  **Frontend** Angular 17 · Cytoscape.js · SSE · TypeScript  ·  **Quality** OpenAPI/Swagger · Micrometer/Prometheus · ArchUnit · WireMock · Testcontainers · JUnit 5  ·  **Infra** Docker Compose · Azure Container Apps · Azure Database for PostgreSQL · Bicep IaC · GitHub Actions → GHCR
 
 ## Repository map
 
@@ -107,17 +113,23 @@ That's Postgres + FastAPI inference (with the grounded summary model) + Spring B
 |---|---|
 | `ml/` | PyTorch/PyG core — graph construction, spectral features, GCN/SAGE/GAT, training, eval, explainability, adversarial. |
 | `inference/` | FastAPI service wrapping the checkpoint (`/score /flags /explain /metrics /adversarial`) + grounded LLM narration. |
-| `api/` | Spring Boot BFF — controllers/services/repositories, RestClient to FastAPI, graph-capping, JPA. |
-| `frontend/` | Angular + Cytoscape.js UI — dashboard, explanation panel, capped subgraph, adversarial demo. |
+| `api/` | Spring Boot BFF — security (Entra ID/RBAC), case-management workflow (state machine), tamper-evident audit, real-time stream engine, Resilience4j, rate-limiting, OpenAPI; controllers/services/repositories over PostgreSQL. |
+| `frontend/` | Angular + Cytoscape.js UI — dashboard, explanation panel, capped subgraph, adversarial demo, live SSE monitoring. |
 | `experiments/` | YAML configs — single source of truth per run. |
 | `infra/` | Docker Compose stack + Azure deploy (`infra/azure` — Bicep IaC, deploy script). |
 
 ## What this project demonstrates
 
-End-to-end ownership of a non-trivial, regulated-domain ML product: graph ML, **trustworthy-AI** concerns (faithful explanations + grounded GenAI, relevant to the EU AI Act), adversarial robustness, honest evaluation, and the full delivery stack from PyTorch to a Java BFF to an Angular UI — containerised and cloud-ready.
+End-to-end ownership of a non-trivial, regulated-domain product:
+
+- **Graph ML & trustworthy AI** — GNN detection, faithful explanations + grounded GenAI (EU AI Act relevant), adversarial robustness, honest evaluation.
+- **Senior-level backend** — a real **AML platform**, not a wrapper: OAuth2/OIDC security with RBAC and segregation of duties, a Spring State Machine case-management workflow, a hash-chained tamper-evident audit trail, an event-driven real-time monitoring pipeline (Kafka + SSE), and the model isolated behind Resilience4j circuit-breakers on Java 21 virtual threads.
+- **Engineering maturity** — OpenAPI, Prometheus metrics, ArchUnit architecture tests, WireMock + Testcontainers integration tests, RFC 7807 errors, IaC, CI.
+- **Delivered** — the whole stack from PyTorch to a Java BFF to an Angular UI, containerised, on a CI pipeline, **running live on Azure**.
 
 ## Status & roadmap
 
-- ✅ Phases 1–7 — ML core, explainability, adversarial robustness, inference, BFF, frontend, Docker Compose.
-- ✅ Grounded LLM explanation summaries (hosted, async, with template fallback).
-- ✅ Phase 8 — Azure deployment (Container Apps + Azure Database for PostgreSQL), **[live](https://aegis-frontend.nicesea-483c92cd.norwayeast.azurecontainerapps.io)**.
+- ✅ ML core, explainability, adversarial robustness, inference, grounded LLM summaries.
+- ✅ Production backend — security (Entra ID/RBAC), AML case-management workflow, tamper-evident audit, real-time streaming monitoring, resilience/rate-limiting, OpenAPI/observability, ArchUnit/WireMock/Testcontainers tests.
+- ✅ Azure deployment (Container Apps + Azure Database for PostgreSQL), **[live](https://aegis-frontend.nicesea-483c92cd.norwayeast.azurecontainerapps.io)**.
+- 🔜 ML deepening — account-centric graph reconstruction (denser structure → higher PR-AUC), temporal GNNs, subgraph-level detection, counterfactual explanations.
