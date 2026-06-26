@@ -75,7 +75,9 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(reg -> {
                 reg.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();          // CORS preflight
-                reg.requestMatchers("/actuator/health/**", "/actuator/info").permitAll();
+                reg.requestMatchers("/actuator/health/**", "/actuator/info",
+                        "/actuator/prometheus", "/actuator/metrics/**").permitAll();
+                reg.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
                 reg.requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll();         // read-only demo
                 reg.requestMatchers(HttpMethod.POST, "/api/adversarial/run").permitAll();
                 if (authEnabled) {
