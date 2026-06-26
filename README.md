@@ -83,6 +83,25 @@ flowchart LR
 
 Honest findings (kept in the repo, not hidden): at a strict precision ≥ 0.9 the baseline's recall is ~0 (hard under this imbalance), and a GAT *without self-loops* collapses to ROC-AUC 0.57 on this fragmented graph (avg degree 0.14) because it discards isolated nodes' own features — re-enabling self-loops recovers 0.88. That same self-loop gap drives the adversarial demo.
 
+### Account-graph reconstruction — finding the structure the GNN needs
+
+The transaction-as-node graph above is **effectively edgeless** (avg degree **0.14**), so the GNN degrades to an MLP and architecture barely moves PR-AUC. Diagnosing *why* and fixing it is the most instructive ML result here. Rebuilding the graph **account-centric** over the *full* 6.92M-transaction file (accounts as nodes, transactions as edges, an account labelled illicit if it touches any laundering transaction) recovers real structure:
+
+| | Transaction-graph | **Account-graph (full data)** |
+|---|---|---|
+| nodes / edges | 181,815 / ~24k | 705,907 / 6.92M |
+| avg degree | 0.14 | **9.81** |
+| nodes with ≥2 links | tiny | **96.6%** |
+
+And on that graph the GNN **genuinely beats** a feature-matched MLP (same 14 per-account features, same split) — proof the structure carries signal:
+
+| Model | PR-AUC | ROC-AUC |
+|---|---|---|
+| MLP (no graph) | 0.082 | 0.874 |
+| **GraphSAGE (uses graph)** | **0.125** | **0.918** |
+
+GraphSAGE is **~1.5× the MLP's PR-AUC** (17× the 0.75% base rate). Reproduce: `python -m ml.train_accounts --csv data/raw/LI-Small_Trans.csv`. Builder + experiment live in [`ml/data/account_graph.py`](ml/data/account_graph.py) and [`ml/train_accounts.py`](ml/train_accounts.py). Natural next steps: temporal GNNs (EvolveGCN/TGAT), subgraph-level (Elliptic2-style) detection, and counterfactual explanations.
+
 ## Run it locally
 
 **Prerequisites:** Docker Desktop. (Optional, only if you want to retrain: Python 3.11.)
