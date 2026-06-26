@@ -7,19 +7,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.aegis.dto.FlagDto;
 import com.aegis.dto.MetricsDto;
 import com.aegis.service.AnalysisService;
+import com.aegis.service.InvestigationService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AnalysisController.class)
+@AutoConfigureMockMvc(addFilters = false)   // pure controller slice — skip the rate-limit filter
 class AnalysisControllerTest {
 
     @Autowired private MockMvc mvc;
     @MockBean private AnalysisService service;
+    @MockBean private InvestigationService investigation;
 
     @Test
     void flagsReturnsRankedTransactions() throws Exception {

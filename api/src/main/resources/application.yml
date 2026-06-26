@@ -1,6 +1,12 @@
 spring:
   application:
     name: aegis-api
+  threads:
+    virtual:
+      enabled: true        # Java 21: serve requests on virtual threads. This BFF mostly *waits* on a
+                           # slow Python model, so blocking on a virtual thread is near-free and the
+                           # platform-thread pool stops being the bottleneck (Resilience4j bulkhead
+                           # still bounds real concurrency to the model).
   datasource:
     url: ${AEGIS_DB_URL:jdbc:postgresql://localhost:5432/aegis}
     username: ${AEGIS_DB_USER:aegis}
@@ -11,6 +17,21 @@ spring:
     open-in-view: false
     properties:
       hibernate.format_sql: true
+      # Store Instants in UTC so they round-trip exactly (the audit hash chain depends on a stable
+      # timestamp representation across persist/reload).
+      hibernate.jdbc.time_zone: UTC
+  # Kafka consumer settings — only used when a broker is configured (KafkaFeed is gated on it).
+  kafka:
+    bootstrap-servers: ${AEGIS_KAFKA_BROKERS:localhost:9092}   # only contacted when a feed listens
+    listener:
+      auto-startup: ${AEGIS_KAFKA_AUTOSTART:true}
+    consumer:
+      group-id: ${AEGIS_KAFKA_GROUP:aegis-stream}
+      auto-offset-reset: latest
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.aegis.stream
+        spring.json.value.default.type: com.aegis.stream.TransactionEvent
 
 server:
   port: 8080
@@ -21,6 +42,57 @@ aegis:
     timeout-seconds: 600
   graph:
     max-nodes: 300        # hard cap on nodes sent to the frontend (spec §8.4)
+  stream:
+    enabled: ${AEGIS_STREAM_ENABLED:true}
+    window-seconds: ${AEGIS_STREAM_WINDOW:90}
+    emit-interval-ms: ${AEGIS_STREAM_INTERVAL_MS:700}
+    alert-threshold: ${AEGIS_STREAM_THRESHOLD:0.75}
+    accounts: ${AEGIS_STREAM_ACCOUNTS:60}
+  kafka:
+    brokers: ${AEGIS_KAFKA_BROKERS:}      # empty -> simulated feed; set -> consume real Kafka
+    topic: ${AEGIS_KAFKA_TOPIC:transactions}
+  ratelimit:
+    enabled: ${AEGIS_RATELIMIT_ENABLED:true}
+    capacity: ${AEGIS_RATELIMIT_CAPACITY:60}            # general burst per client...
+    refill-seconds: ${AEGIS_RATELIMIT_PERIOD:60}        # ...refilled fully every N seconds (60/min).
+    expensive-capacity: ${AEGIS_RATELIMIT_EXPENSIVE_CAPACITY:10}      # stricter bucket for the costly
+    expensive-refill-seconds: ${AEGIS_RATELIMIT_EXPENSIVE_PERIOD:60}  # explain/summary (CPU + hosted LLM).
+
+# Resilience4j: the inference service is a slow external dependency; isolate it so a slow/down model
+# degrades gracefully (fast 502 + fallback) instead of exhausting threads and cascading.
+resilience4j:
+  circuitbreaker:
+    instances:
+      inference:
+        sliding-window-size: 20
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+  retry:
+    instances:
+      inference:
+        max-attempts: 3
+        wait-duration: 400ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+  bulkhead:
+    instances:
+      inference:
+        max-concurrent-calls: 16        # cap simultaneous in-flight calls to the model
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:

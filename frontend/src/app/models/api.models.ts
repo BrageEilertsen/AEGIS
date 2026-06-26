@@ -39,6 +39,17 @@ export interface Explanation {
 // Poll response for the async LLM narration (GET /api/summary/{dataset}/{node}).
 export interface SummaryStatus { ready: boolean; summary: string | null; }
 
+// Real-time monitoring (SSE /api/stream + /api/stream/stats).
+export interface StreamStats {
+  totalTransactions: number; totalAlerts: number; windowSize: number;
+  throughputPerSec: number; subscribers: number; threshold: number; source: string;
+}
+export interface StreamTx {
+  id: string; ts: number; source: string; target: string;
+  amount: number; risk: number; flagged: boolean; pattern: string;
+}
+export interface StreamAlert { ts: number; account: string; pattern: string; risk: number; }
+
 export interface AdversarialArtifact {
   schema_version: string; summary: string;
   degradation: {

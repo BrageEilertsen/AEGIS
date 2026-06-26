@@ -1,34 +1,63 @@
 package com.aegis.exception;
 
+import jakarta.validation.ConstraintViolationException;
+import java.net.URI;
 import java.time.Instant;
-import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/** Maps domain exceptions to clean HTTP responses (spec §8.3 exception->HTTP mapping). */
+/** Maps exceptions to RFC 7807 {@link ProblemDetail} responses (application/problem+json), so
+ *  clients get a consistent, machine-readable error shape. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<Map<String, Object>> notFound(NotFoundException e) {
-        return body(HttpStatus.NOT_FOUND, e.getMessage());
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler({NotFoundException.class,
+                       org.springframework.web.servlet.resource.NoResourceFoundException.class})
+    public ProblemDetail notFound(Exception e) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", e.getMessage());
     }
 
     @ExceptionHandler(InferenceUnavailableException.class)
-    public ResponseEntity<Map<String, Object>> inference(InferenceUnavailableException e) {
-        return body(HttpStatus.BAD_GATEWAY, e.getMessage());
+    public ProblemDetail inference(InferenceUnavailableException e) {
+        return problem(HttpStatus.BAD_GATEWAY, "Inference Unavailable", e.getMessage());
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> invalid(MethodArgumentNotValidException e) {
-        return body(HttpStatus.BAD_REQUEST, "validation failed: " + e.getMessage());
+    @ExceptionHandler(IllegalCaseTransitionException.class)
+    public ProblemDetail illegalTransition(IllegalCaseTransitionException e) {
+        return problem(HttpStatus.CONFLICT, "Illegal Case Transition", e.getMessage());
     }
 
-    private ResponseEntity<Map<String, Object>> body(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of(
-                "timestamp", Instant.now().toString(), "status", status.value(), "error", message));
+    @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class,
+                       MethodArgumentTypeMismatchException.class})
+    public ProblemDetail invalid(Exception e) {
+        return problem(HttpStatus.BAD_REQUEST, "Validation Failed", e.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ProblemDetail forbidden(org.springframework.security.access.AccessDeniedException e) {
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", "You don't have permission to do that.");
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail unexpected(Exception e) {
+        log.error("Unhandled exception", e);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                "An unexpected error occurred.");   // don't leak internals to clients
+    }
+
+    private ProblemDetail problem(HttpStatus status, String title, String detail) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail == null ? title : detail);
+        pd.setTitle(title);
+        pd.setType(URI.create("https://aegis/errors/" + status.value()));
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
     }
 }

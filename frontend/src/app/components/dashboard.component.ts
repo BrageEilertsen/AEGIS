@@ -6,12 +6,13 @@ import { MetricsPanelComponent } from './metrics-panel.component';
 import { GraphCanvasComponent } from './graph-canvas.component';
 import { ExplanationPanelComponent } from './explanation-panel.component';
 import { AdversarialDemoComponent } from './adversarial-demo.component';
+import { LiveMonitorComponent } from './live-monitor.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, MetricsPanelComponent, GraphCanvasComponent,
-            ExplanationPanelComponent, AdversarialDemoComponent],
+            ExplanationPanelComponent, AdversarialDemoComponent, LiveMonitorComponent],
   template: `
     <div *ngIf="dataset as d" style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
       <span class="pill">{{ d.name }}</span>
@@ -21,6 +22,8 @@ import { AdversarialDemoComponent } from './adversarial-demo.component';
     </div>
 
     <app-metrics-panel [metrics]="metrics" style="display:block;margin-bottom:18px"></app-metrics-panel>
+
+    <app-live-monitor style="display:block;margin-bottom:18px"></app-live-monitor>
 
     <div class="grid-main">
       <div class="card">
@@ -50,14 +53,23 @@ import { AdversarialDemoComponent } from './adversarial-demo.component';
             <app-graph-canvas [subgraph]="explanation.neighborhood_subgraph"></app-graph-canvas>
           </div>
           <ng-template #computing>
-            <div class="loading-pane">
+            <div class="loading-pane" *ngIf="!explainError; else explainFailed">
               <span class="spinner"></span>
               <div>
                 <div style="color:var(--ink);font-weight:600">Computing explanation for #{{ selected.node_id }}…</div>
                 <div class="faint" style="font-size:12px;margin-top:4px">GNNExplainer is finding the minimal sufficient subgraph
-                  — first run can take ~1 min on CPU, then it's cached.</div>
+                  — usually about a second.</div>
               </div>
             </div>
+            <ng-template #explainFailed>
+              <div class="loading-pane">
+                <div>
+                  <div style="color:var(--illicit);font-weight:600">Couldn't load the explanation for #{{ selected.node_id }}.</div>
+                  <div class="faint" style="font-size:12px;margin-top:4px">The model service may be waking up — click the
+                    transaction again in a moment.</div>
+                </div>
+              </div>
+            </ng-template>
           </ng-template>
         </div>
         <app-explanation-panel [explanation]="explanation" [datasetId]="dataset?.id ?? null"></app-explanation-panel>
@@ -76,6 +88,7 @@ export class DashboardComponent implements OnInit {
   flags: Flag[] = [];
   selected: Flag | null = null;
   explanation: Explanation | null = null;
+  explainError = false;
 
   constructor(private api: ApiService) {}
 
@@ -91,7 +104,17 @@ export class DashboardComponent implements OnInit {
 
   select(f: Flag) {
     if (!this.dataset) return;
-    this.selected = f; this.explanation = null;
-    this.api.explain(this.dataset.id, f.node_id).subscribe((e) => (this.explanation = e));
+    const id = this.dataset.id;
+    this.selected = f; this.explanation = null; this.explainError = false;
+    // investigate = explanation + AI summary fetched concurrently; if the summary isn't ready inline,
+    // the panel polls /api/summary. If investigate hiccups (e.g. mid-deploy), fall back to plain
+    // explain so the UI never hangs on "Computing…".
+    this.api.investigate(id, f.node_id).subscribe({
+      next: (e) => (this.explanation = e),
+      error: () => this.api.explain(id, f.node_id).subscribe({
+        next: (e) => (this.explanation = e),
+        error: () => { if (this.selected === f) this.explainError = true; },
+      }),
+    });
   }
 }
